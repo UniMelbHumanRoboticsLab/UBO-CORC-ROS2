@@ -1,2 +1,3 @@
 # UBO-CORC-ROS2
-ROS2 integration into CORC stateMachine for Upper Body Orthosis
+CORC stateMachine for Upper Body Orthosis with ROS2 integration
+
