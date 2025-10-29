@@ -1,0 +1,3 @@
+[submodule "CANOpenRobotController"]
+	path = CANOpenRobotController
+	url = https://github.com/UniMelbHumanRoboticsLab/CANOpenRobotController.git
