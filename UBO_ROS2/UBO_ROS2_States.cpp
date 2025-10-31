@@ -1,5 +1,6 @@
 #include "UBO_ROS2_States.h"
 #include "UBO_ROS2.h"
+#include <fmt/format.h>
 
 using namespace std;
 
@@ -8,6 +9,7 @@ using namespace std;
  *
  */
 void UBO_ROS2_State::entry(void) {
+    entry_num++;
     //Actual state entry
     entryCode();
     sm->get_node()->publish_state(state_name);
@@ -43,8 +45,8 @@ void UBOCalibState::entryCode(void) {
     readings = Eigen::ArrayXXd::Zero(NUM_CALIBRATE_READINGS, force.size());
 
     if(spdlog::get_level()<=spdlog::level::debug) {
-        stateLogger.initLogger("CalibrationLog", "logs/UBOCalibLog.csv", LogFormat::CSV, true);
-        stateLogger.add(running(), "%Time (s)");
+        stateLogger.initLogger("UBOCalib", "logs/UBOCalibLog.csv", LogFormat::CSV, true);
+        stateLogger.add(running(), "%Time(s)");
         stateLogger.add(robot->getUBO_readings(), "F");
         stateLogger.startLogger();
     }
@@ -114,13 +116,38 @@ void UBOIdleState::exitCode(void) {
  *
  */
 void UBORecordState::entryCode(void) {
-    spdlog::info("RecordState entry");
-    // spdlog::info("To Zero: A = Crutches");
-    // spdlog::info("S to start logging");
+    spdlog::info("RecordState entry num {}",entry_num);
+    spdlog::info("S to Stop");
+    lastRFTReadings = robot->getUBO_readings();
+    robot->startUBO_FTSensors();
+
+    if(spdlog::get_level()<=spdlog::level::debug) {
+        std::string recordLogName = fmt::format("logs/recordings/UBORecord{}Log.csv", entry_num);
+        stateLogger.initLogger("UBORecord", recordLogName, LogFormat::CSV, true);
+
+        if (stateLogger.vectorOfLogElements.size() == 0)
+        {
+            stateLogger.add(running(), "%Time (s)");
+            stateLogger.add(robot->getUBO_readings(), "F");
+        }
+        stateLogger.startLogger();
+    }
 };
 
 void UBORecordState::duringCode(void){
-    // Do nothing
+    Eigen::VectorXd curReadings = robot->getUBO_readings();
+
+    // Check if some sensors are not responding properly every one second
+    if(ticker % 100 == 99){
+        bool ok = true;
+        if (lastRFTReadings.isApprox(curReadings)){
+            spdlog::error("Crutches Not Updating");
+            ok = false;
+        }
+        lastRFTReadings = curReadings;
+    }
+    robot->printUBO_readings();
+    ticker++;
 };
 
 void UBORecordState::exitCode(void) {

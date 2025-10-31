@@ -89,7 +89,7 @@ UBO_ROS2::~UBO_ROS2() {
 void UBO_ROS2::init() {
     spdlog::debug("UBO_ROS2::init()");
     if(robot()->initialise()) {
-        logHelper.initLogger("UBO_ROS2Log", "logs/UBO_ROS2.csv", LogFormat::CSV, true);
+        logHelper.initLogger("UBOInit", "logs/UBOInitLog.csv", LogFormat::CSV, true);
         logHelper.add(runningTime(), "Time (s)");
         logHelper.add(robot()->getUBO_readings(), "F");
         #ifdef NOROBOT
