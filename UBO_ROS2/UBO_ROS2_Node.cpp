@@ -10,8 +10,14 @@ UBO_ROS2_Node::UBO_ROS2_Node(const std::string &name, UBORobot *robot)
 
     // Create a status publisher
     status_pub = create_publisher<std_msgs::msg::String>(
-        "rbt_state", 1000
-    );
+        "rbt_state", 1000    );
+    wrench1_pub = create_publisher<geometry_msgs::msg::WrenchStamped>(
+        "rft1_wrench", 1000    );
+    wrench2_pub = create_publisher<geometry_msgs::msg::WrenchStamped>(
+        "rft2_wrench", 1000    );
+    wrench3_pub = create_publisher<geometry_msgs::msg::WrenchStamped>(
+        "rft3_wrench", 1000    );
+
 }
 
 rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
@@ -33,6 +39,44 @@ UBO_ROS2_Node::publish_state(std::string status)
 
     // Publish the joint state message
     status_pub->publish(msg);
+}
+
+void
+UBO_ROS2_Node::publish_wrenches(Eigen::VectorXd wrenches)
+{
+    // Instantiate joint state message
+    // spdlog::debug("publishing");
+    int num_rft = wrenches.size()/6;
+    // spdlog::debug("Publishing {} wrenches", num_rft);
+
+    for (int i=0; i< num_rft; i++)
+    {
+
+        geometry_msgs::msg::WrenchStamped msg;
+
+        msg.header.stamp = this->now();
+        msg.header.frame_id= "origin";
+
+        msg.wrench.force.x = wrenches[i*6+0];
+        msg.wrench.force.y = wrenches[i*6+1];
+        msg.wrench.force.z = wrenches[i*6+2];
+        msg.wrench.torque.x = wrenches[i*6+3];
+        msg.wrench.torque.y = wrenches[i*6+4];
+        msg.wrench.torque.z = wrenches[i*6+5];
+
+        if (i == 0)
+        {
+            wrench1_pub->publish(msg);
+        }
+        else if (i == 1)
+        {
+            wrench2_pub->publish(msg);
+        }
+        else if (i == 2)
+        {
+            wrench3_pub->publish(msg);
+        }
+    }
 }
 
 

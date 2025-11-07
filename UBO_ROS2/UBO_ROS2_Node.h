@@ -15,6 +15,7 @@
 #include <std_msgs/msg/string.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/wrench_stamped.hpp>
 
 using std::placeholders::_1;
 
@@ -24,6 +25,7 @@ public:
     UBO_ROS2_Node(const std::string &name, UBORobot *robot);
 
     void publish_state(std::string status);
+    void publish_wrenches(Eigen::VectorXd wrenches);
 
     rclcpp::node_interfaces::NodeBaseInterface::SharedPtr get_interface();
 
@@ -31,9 +33,10 @@ public:
 private:
     UBORobot *m_Robot;
 
-    // rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_Sub;
-    // rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr m_Pub;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr status_pub;
+    rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr wrench1_pub;
+    rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr wrench2_pub;
+    rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr wrench3_pub;
     
 };
 

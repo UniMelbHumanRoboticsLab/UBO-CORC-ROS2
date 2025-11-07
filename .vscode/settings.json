@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "*.h": "cpp",
+        "*.cpp": "cpp",
         "cctype": "cpp",
         "clocale": "cpp",
         "cmath": "cpp",
@@ -76,7 +77,13 @@
         "any": "cpp",
         "codecvt": "cpp",
         "regex": "cpp",
-        "source_location": "cpp"
+        "source_location": "cpp",
+        "strstream": "cpp",
+        "cfenv": "cpp",
+        "future": "cpp",
+        "shared_mutex": "cpp",
+        "stdfloat": "cpp"
     },
-    "ros.distro": "jazzy"
+    "ros.distro": "jazzy",
+    "cmake.sourceDirectory": "/home/jqloh/Desktop/UBO-CORC-ROS2/CANOpenRobotController"
 }

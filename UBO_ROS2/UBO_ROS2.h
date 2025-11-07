@@ -20,7 +20,7 @@
 #include "UBO_ROS2_Node.h"
 
 /**
- * @brief Example implementation of a StateMachine for the M3Robot class. States should implemented M3DemoState
+ * @brief Example implementation of a StateMachine for the UBORobot class. States should implemented UBO_ROS2_States
  *
  */
 class UBO_ROS2 : public StateMachine {
@@ -34,7 +34,7 @@ class UBO_ROS2 : public StateMachine {
     void hwStateUpdate();
 
     UBORobot *robot() { return static_cast<UBORobot*>(_robot.get()); } //!< Robot getter with specialised type (lifetime is managed by Base StateMachine)
-    const std::shared_ptr<UBO_ROS2_Node> &get_node(){return m_Node;}
+    const std::shared_ptr<UBO_ROS2_Node> &get_node(){return uboNode;}
     std::shared_ptr<FLNLHelper> UIserver = nullptr;     //!< Pointer to communication server
 
     // //TODO: place in struct and pass to states (instead of whole state machine)
@@ -45,7 +45,7 @@ class UBO_ROS2 : public StateMachine {
     // Deweight_s DwData;
 
     private:
-        std::shared_ptr<UBO_ROS2_Node> m_Node;
+        std::shared_ptr<UBO_ROS2_Node> uboNode;
 };
 
 #endif /*M3_SM_H*/

@@ -58,7 +58,7 @@ UBO_ROS2::UBO_ROS2(int argc, char **argv)  {
     rclcpp::init(argc, argv, ros_init);
 
     // Create the ROS2 node and pass a reference to the UBO object
-    m_Node = std::make_shared<UBO_ROS2_Node>("UBO", robot());
+    uboNode = std::make_shared<UBO_ROS2_Node>("UBO", robot());
 
     //Create state instances and add to the State Machine
     addState("initState", std::make_shared<UBOInitState>(robot(), this));
@@ -71,6 +71,7 @@ UBO_ROS2::UBO_ROS2(int argc, char **argv)  {
     addTransition("initState", &isAPressed, "calibState");
     addTransition("calibState", &isCalibrationFinished, "idleState");
     addTransition("idleState", &isSPressed, "recordState");
+    addTransition("idleState", &isAPressed, "calibState");
     addTransition("recordState", &isSPressed, "idleState");
 
     //Initialize the state machine with first state of the designed state machine, using baseclass function.

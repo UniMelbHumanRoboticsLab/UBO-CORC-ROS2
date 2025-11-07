@@ -38,11 +38,16 @@ void UBO_ROS2_State::exit(void)
  *
  */
 void UBOCalibState::entryCode(void) {
+    calibDone = false;
     spdlog::info("CalibrateState entry");
     spdlog::info("Calibrating....");
 
     Eigen::VectorXd force = robot->getUBO_readings();
     readings = Eigen::ArrayXXd::Zero(NUM_CALIBRATE_READINGS, force.size());
+
+    // Take average of the matrices
+    Eigen::VectorXd offsets = Eigen::VectorXd::Zero(readings.cols());
+    robot->setUBOOffsets(offsets);
 
     if(spdlog::get_level()<=spdlog::level::debug) {
         stateLogger.initLogger("UBOCalib", "logs/UBOCalibLog.csv", LogFormat::CSV, true);
@@ -60,9 +65,10 @@ void UBOCalibState::duringCode(void) {
         if (currReading%50==1)
         {
             spdlog::info("Iter {}",currReading);
-            robot->printUBO_readings();
+            
         }
         readings.row(currReading) = robot->getUBO_readings();
+        robot->printUBO_readings(readings.row(currReading));
     }
     else
     {
@@ -119,7 +125,10 @@ void UBORecordState::entryCode(void) {
     spdlog::info("RecordState entry num {}",entry_num);
     spdlog::info("S to Stop");
     lastRFTReadings = robot->getUBO_readings();
-    robot->startUBO_FTSensors();
+    if(robot->startUBO_FTSensors())
+    {
+        spdlog::info("Starting RFT");
+    }
 
     if(spdlog::get_level()<=spdlog::level::debug) {
         std::string recordLogName = fmt::format("logs/recordings/UBORecord{}Log.csv", entry_num);
@@ -137,6 +146,26 @@ void UBORecordState::entryCode(void) {
 void UBORecordState::duringCode(void){
     Eigen::VectorXd curReadings = robot->getUBO_readings();
 
+    // correct the readings here
+    {
+        Eigen::VectorXd faulty_force = curReadings.segment(0, 3);
+        Eigen::VectorXd faulty_torque = curReadings.segment(3, 3);
+
+        Eigen::Matrix3d rotation_matrix;
+        rotation_matrix = Eigen::AngleAxisd(-M_PI*50/180, Eigen::Vector3d::UnitZ());  // Rotate 50 degrees around Z-axis
+        Eigen::VectorXd corrected_force = rotation_matrix * faulty_force;
+        Eigen::VectorXd corrected_torque = rotation_matrix * faulty_torque;
+
+        curReadings[0] = corrected_force[0];
+        curReadings[1] = corrected_force[1];
+        curReadings[2] = corrected_force[2];
+
+        curReadings[3] = corrected_torque[0];
+        curReadings[4] = corrected_torque[1];
+        curReadings[5] = corrected_torque[2];
+    }
+
+
     // Check if some sensors are not responding properly every one second
     if(ticker % 100 == 99){
         bool ok = true;
@@ -146,11 +175,17 @@ void UBORecordState::duringCode(void){
         }
         lastRFTReadings = curReadings;
     }
-    robot->printUBO_readings();
+
+    robot->printUBO_readings(curReadings);
+    sm->get_node()->publish_wrenches(curReadings);
     ticker++;
 };
 
 void UBORecordState::exitCode(void) {
+    if(robot->stopUBO_FTSensors())
+    {
+        spdlog::info("Stopping RFT");
+    }
     spdlog::info("RecordState Exit");
 };
 
