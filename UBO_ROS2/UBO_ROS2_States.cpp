@@ -105,11 +105,12 @@ void UBOCalibState::exitCode(void) {
  */
 void UBOIdleState::entryCode(void) {
     spdlog::info("IdleState entry");
-    // spdlog::info("To Zero: A = Crutches");
     spdlog::info("S to start logging");
+    
 };
 
 void UBOIdleState::duringCode(void){
+    
     // Do nothing
 };
 

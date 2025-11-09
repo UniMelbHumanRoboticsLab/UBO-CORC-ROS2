@@ -54,7 +54,7 @@ class UBOInitState : public UBO_ROS2_State {
     public:
         UBOInitState(UBORobot * ubo, UBO_ROS2 *sm, const char *name = "UBO Init"):UBO_ROS2_State(ubo, sm, name){};
 
-        void entryCode(void) {spdlog::info("InitState Entry");}
+        void entryCode(void) {spdlog::info("InitState Entry");robot->setUBO_FTSensorsFilter();}
         void duringCode(void) {}
         void exitCode(void) {spdlog::info("InitState Exit");}
 };
