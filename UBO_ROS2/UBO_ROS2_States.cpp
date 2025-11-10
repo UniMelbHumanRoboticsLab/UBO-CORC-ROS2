@@ -13,6 +13,7 @@ void UBO_ROS2_State::entry(void) {
     //Actual state entry
     entryCode();
     sm->get_node()->publish_state(state_name);
+    
 };
 void UBO_ROS2_State::during(void) {
     //Actual state during
@@ -65,7 +66,6 @@ void UBOCalibState::duringCode(void) {
         if (currReading%50==1)
         {
             spdlog::info("Iter {}",currReading);
-            
         }
         readings.row(currReading) = robot->getUBO_readings();
         robot->printUBO_readings(readings.row(currReading));
@@ -104,6 +104,7 @@ void UBOCalibState::exitCode(void) {
  *
  */
 void UBOIdleState::entryCode(void) {
+    
     spdlog::info("IdleState entry");
     spdlog::info("S to start logging");
     
@@ -130,6 +131,7 @@ void UBORecordState::entryCode(void) {
     {
         spdlog::info("Starting RFT");
     }
+    sm->UIserver->sendCmd(string("rec"));
 
     if(spdlog::get_level()<=spdlog::level::debug) {
         std::string recordLogName = fmt::format("logs/recordings/UBORecord{}Log.csv", entry_num);
@@ -178,6 +180,7 @@ void UBORecordState::duringCode(void){
     }
 
     robot->printUBO_readings(curReadings);
+    sm->UIserver->sendState();
     sm->get_node()->publish_wrenches(curReadings);
     ticker++;
 };

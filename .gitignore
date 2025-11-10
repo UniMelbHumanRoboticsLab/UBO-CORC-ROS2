@@ -6,3 +6,4 @@ ws_plotjuggler/
 .vscode/c_cpp_properties.json
 .vscode/settings.json
 plotjuggler_layout.xml
+pyCORC/__pycache__/FLNL.cpython-312.pyc
