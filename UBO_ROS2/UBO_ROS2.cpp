@@ -124,6 +124,7 @@ void UBO_ROS2::hwStateUpdate() {
     StateMachine::hwStateUpdate();
     //Also send robot state over network
     
+    
     //Attempt to reconnect (if not already waiting for connection)
     UIserver->reconnect();
     // Allow for the ROS2 node to execute callbacks (e.g., subscriptions)
