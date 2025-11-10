@@ -97,12 +97,11 @@ void UBO_ROS2::init() {
             UIserver = std::make_shared<FLNLHelper>(*robot(), "127.0.0.1");
             // UIserver = std::make_shared<FLNLHelper>(*robot(), "192.168.7.2");
         #else
-            UIserver = std::make_shared<FLNLHelper>(*robot(), "127.0.0.1");
+            UIserver = std::make_shared<FLNLHelper>(*robot(), "0.0.0.0");
+
             // UIserver = std::make_shared<FLNLHelper>(*robot(), "192.168.7.2");
         #endif // NOROBOT
-        UIserver->registerState(Command);
-        // UIserver->registerState(MvtProgress);
-        // UIserver->registerState(Contribution);
+        UIserver->registerState(robot()->getUBO_readings());
     }
     else {
         spdlog::critical("Failed robot initialisation. Exiting...");
@@ -124,7 +123,7 @@ void UBO_ROS2::end() {
 void UBO_ROS2::hwStateUpdate() {
     StateMachine::hwStateUpdate();
     //Also send robot state over network
-    UIserver->sendState();
+    
     //Attempt to reconnect (if not already waiting for connection)
     UIserver->reconnect();
     // Allow for the ROS2 node to execute callbacks (e.g., subscriptions)
