@@ -5,23 +5,41 @@ using namespace std;
 ////////////////////////////////////////////////////////////////
 // Transitions--------------------------------------------------
 ///////////////////////////////////////////////////////////////
-bool isAPressed(StateMachine & sm) {
+bool calibUBO(StateMachine & sm) {
     UBO_ROS2 & SM = static_cast<UBO_ROS2 &>(sm);
-    spdlog::trace("IsAPressed");
+    spdlog::trace("Calibration Requested");
     if (SM.robot()->keyboard->getA() == true) {
 
         return true;
     }
     return false;
 }
-bool isSPressed(StateMachine & sm) {
+bool startRec(StateMachine & sm) {
     UBO_ROS2 & SM = static_cast<UBO_ROS2 &>(sm);
+    spdlog::trace("Record Requested");
     if (SM.robot()->keyboard->getS() == true) {
+        return true;
+    }
+    //Check incoming command requesting state change
+    if (SM.UIserver->isCmd("REC") ) {
+        // sm.UIserver->sendCmd(string("OK"));
         return true;
     }
     return false;
 }
-
+bool stopRec(StateMachine & sm) {
+    UBO_ROS2 & SM = static_cast<UBO_ROS2 &>(sm);
+    spdlog::trace("RecStop Requested");
+    if (SM.robot()->keyboard->getS() == true) {
+        return true;
+    }
+    //Check incoming command requesting state change
+    if (SM.UIserver->isCmd("STP") ) {
+        // sm.UIserver->sendCmd(string("OK"));
+        return true;
+    }
+    return false;
+}
 bool isCalibrationFinished(StateMachine & sm) {
     UBO_ROS2 & SM = static_cast<UBO_ROS2 &>(sm);
     return (SM.state<UBOCalibState>("calibState"))->isCalibDone();
@@ -68,11 +86,11 @@ UBO_ROS2::UBO_ROS2(int argc, char **argv)  {
 
     //Define transitions between states
     // Transitions
-    addTransition("initState", &isAPressed, "calibState");
+    addTransition("initState", &calibUBO, "calibState");
     addTransition("calibState", &isCalibrationFinished, "idleState");
-    addTransition("idleState", &isSPressed, "recordState");
-    addTransition("idleState", &isAPressed, "calibState");
-    addTransition("recordState", &isSPressed, "idleState");
+    addTransition("idleState", &startRec, "recordState");
+    addTransition("idleState", &calibUBO, "calibState");
+    addTransition("recordState", &stopRec, "idleState");
 
     //Initialize the state machine with first state of the designed state machine, using baseclass function.
     setInitState("initState");
