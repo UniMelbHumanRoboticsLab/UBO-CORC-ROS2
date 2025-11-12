@@ -105,6 +105,9 @@ class corc_FLNL_client(QObject):
                 self.Connected=False
                 self.receiving=False
                 return False
+            except Exception as e:
+                print(e)    
+                return False
 
             return True
     def ProcessRcvValues(self, data, nbvals):
@@ -191,6 +194,7 @@ class corc_FLNL_client(QObject):
     @Slot()
     def stop(self):
         self.SendCmd("STP")
+        # print()
         self.connection.close()
         self.poll_timer.stop()
         self.stopped.emit()

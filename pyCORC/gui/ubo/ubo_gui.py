@@ -15,6 +15,7 @@ from PySide6 import QtWidgets
 from PySide6.QtGui import QShortcut
 from PySide6.QtCore import QThread,Qt,QMetaObject,Slot
 
+NUM_RFT = 1
 class ubo_gui(pycorc_gui):
     def __init__(self,init_args):
         self.init_args = init_args
@@ -53,9 +54,12 @@ class ubo_gui(pycorc_gui):
         self.corc_thread = QThread()
         self.corc_worker = corc_FLNL_client(ip=self.corc_args["ip"],port=self.corc_args["port"])
         # init corc live stream plot
+        self.ubo_F_live_stream_plots = []
+        self.ubo_M_live_stream_plots = []
         if self.gui_args["on"] and self.gui_args["force"]:
-            self.ubo_F_live_stream_plot = self.add_live_stream_plot(live_stream=self.ubo_wrenches_live_stream,sensor_name= f"UBO Force",unit="N",dim=3)
-            self.ubo_M_live_stream_plot = self.add_live_stream_plot(live_stream=self.ubo_wrenches_live_stream,sensor_name= f"UBO Moment",unit="Nm",dim=3)
+            for i in range(NUM_RFT):
+                self.ubo_F_live_stream_plots.append(self.add_live_stream_plot(live_stream=self.ubo_wrenches_live_stream,sensor_name= f"UBO_{i} Force",unit="N",dim=3))
+                self.ubo_M_live_stream_plots.append(self.add_live_stream_plot(live_stream=self.ubo_wrenches_live_stream,sensor_name= f"UBO_{i} Moment",unit="Nm",dim=3))
     def init_logger(self):
         # init response label
         self.logger_label = self.init_response_label(size=[500,150])
@@ -161,10 +165,13 @@ class ubo_gui(pycorc_gui):
             # update rft info
             corc_data = self.corc_response["raw_data"]
             fps = self.corc_response["corc_fps"]
-            self.update_response_label(self.corc_label,f"FPS:{fps}\nCORC Running Time:{corc_data[0]}s")
-            # if self.gui_force["on?"] and self.gui_force["RFT"]:
-            #     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.rft_live_stream_plot,force_data,dim=3)
-            #     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.rft_tau_live_stream_plot,force_data[3:],dim=3)
+            self.update_response_label(self.corc_label,f"FPS:{fps}\nCORC Running Time:{corc_data[0]}s\n{corc_data[1:]}")
+            if self.gui_args["on"] and self.gui_args["force"]:
+                for i in range(NUM_RFT):
+                    force_data = corc_data[1+i*6:1+i*6+6]
+                    # pass
+                    self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_F_live_stream_plots[i],force_data,dim=3)
+                    self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_M_live_stream_plots[i],force_data[3:],dim=3)
         if hasattr(self, 'logger_response'):
             print_text = self.logger_response["print_text"]
             fps = self.logger_response["logger_fps"]

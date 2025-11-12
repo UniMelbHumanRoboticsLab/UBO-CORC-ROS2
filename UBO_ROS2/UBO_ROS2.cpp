@@ -110,7 +110,7 @@ void UBO_ROS2::init() {
     if(robot()->initialise()) {
         logHelper.initLogger("UBOInit", "logs/UBOInitLog.csv", LogFormat::CSV, true);
         logHelper.add(runningTime(), "Time (s)");
-        logHelper.add(robot()->getUBO_readings(), "F");
+        logHelper.add(robot()->getCorrectedUBO_readings(), "F");
         #ifdef NOROBOT
             UIserver = std::make_shared<FLNLHelper>(*robot(), "127.0.0.1");
             // UIserver = std::make_shared<FLNLHelper>(*robot(), "192.168.7.2");
@@ -119,7 +119,7 @@ void UBO_ROS2::init() {
 
             // UIserver = std::make_shared<FLNLHelper>(*robot(), "192.168.7.2");
         #endif // NOROBOT
-        UIserver->registerState(robot()->getUBO_readings());
+        UIserver->registerState(robot()->getCorrectedUBO_readings());
     }
     else {
         spdlog::critical("Failed robot initialisation. Exiting...");

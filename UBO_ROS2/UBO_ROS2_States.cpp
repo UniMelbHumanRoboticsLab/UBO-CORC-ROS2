@@ -147,27 +147,7 @@ void UBORecordState::entryCode(void) {
 };
 
 void UBORecordState::duringCode(void){
-    Eigen::VectorXd curReadings = robot->getUBO_readings();
-
-    // correct the readings here
-    {
-        Eigen::VectorXd faulty_force = curReadings.segment(0, 3);
-        Eigen::VectorXd faulty_torque = curReadings.segment(3, 3);
-
-        Eigen::Matrix3d rotation_matrix;
-        rotation_matrix = Eigen::AngleAxisd(-M_PI*50/180, Eigen::Vector3d::UnitZ());  // Rotate 50 degrees around Z-axis
-        Eigen::VectorXd corrected_force = rotation_matrix * faulty_force;
-        Eigen::VectorXd corrected_torque = rotation_matrix * faulty_torque;
-
-        curReadings[0] = corrected_force[0];
-        curReadings[1] = corrected_force[1];
-        curReadings[2] = corrected_force[2];
-
-        curReadings[3] = corrected_torque[0];
-        curReadings[4] = corrected_torque[1];
-        curReadings[5] = corrected_torque[2];
-    }
-
+    Eigen::VectorXd curReadings = robot->getCorrectedUBO_readings();
 
     // Check if some sensors are not responding properly every one second
     if(ticker % 100 == 99){
