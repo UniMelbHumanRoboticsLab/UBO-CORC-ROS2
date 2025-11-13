@@ -6,7 +6,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from base.pycorc_gui import pycorc_gui
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
-print(sys.path)
+# print(sys.path)
 from pycorc_io.corc.corc_FLNL_client import corc_FLNL_client
 
 import numpy as np
@@ -64,10 +64,8 @@ class ubo_gui(pycorc_gui):
         # init response label
         self.logger_label = self.init_response_label(size=[500,150])
         self.logger_thread = QThread()
-        self.logger_worker = ubo_logger(sensor_flags=self.init_args["init_flags"],
-                                            side=self.init_args["side"],
-                                            finger_id=[self.init_args["finger_name"],self.init_args["finger_id"]],
-                                            take_num = self.init_args["take_num"] )
+        self.logger_worker = ubo_logger(init_args = self.init_args["init_flags"],
+                                        take_num  = self.init_args["take_num"])
     def init_shortcuts(self):
         # to start / stop logging at button press
         if self.log_args["on"]:
@@ -106,7 +104,7 @@ class ubo_gui(pycorc_gui):
         if self.corc_args["on"]:
             # move worker to thread
             self.corc_worker.moveToThread(self.corc_thread)
-            # connect to sensor gui
+            # connect to gui
             self.corc_worker.data_ready.connect(self.update_corc,type=Qt.ConnectionType.QueuedConnection)
             # connect thread start to start worker   
             self.corc_thread.started.connect(self.corc_worker.start_worker)
@@ -118,9 +116,9 @@ class ubo_gui(pycorc_gui):
         if self.log_args["on"]:
             # move worker to thread
             self.logger_worker.moveToThread(self.logger_thread)
-            # connect rft to logger
-            if self.init_args["init_flags"]["rft"]  == 1:
-                self.corc_worker.forces_ready.connect(self.logger_worker.update_rft,type=Qt.ConnectionType.QueuedConnection)
+            # connect corc to logger
+            if self.corc_args["on"]:
+                self.corc_worker.data_ready.connect(self.logger_worker.update_corc,type=Qt.ConnectionType.QueuedConnection)
             # connect logger to sensor gui
             self.logger_worker.time_ready.connect(self.update_logger,type=Qt.ConnectionType.QueuedConnection)
             # connect thread start to add opened threads  
@@ -211,7 +209,7 @@ if __name__ == "__main__":
                                     "freq":60,
                                     "3d":False,
                                     "force":True},
-                             "log":{"on":False}
+                             "log":{"on":True}
                              },
                "take_num":0}
         

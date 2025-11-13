@@ -134,7 +134,7 @@ void UBORecordState::entryCode(void) {
     sm->UIserver->sendCmd(string("rec"));
 
     if(spdlog::get_level()<=spdlog::level::debug) {
-        std::string recordLogName = fmt::format("logs/recordings/UBORecord{}Log.csv", entry_num);
+        std::string recordLogName = fmt::format("logs/corc_recordings/UBORecord{}Log.csv", entry_num);
         stateLogger.initLogger("UBORecord", recordLogName, LogFormat::CSV, true);
 
         if (stateLogger.vectorOfLogElements.size() == 0)

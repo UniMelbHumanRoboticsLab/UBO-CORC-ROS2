@@ -14,13 +14,11 @@ class ubo_logger(QObject):
     time_ready = Signal(dict)
     finish_save = Signal()
     stopped = Signal()
-    def __init__(self,sensor_flags,side,finger_id,take_num):
+    def __init__(self,init_args,take_num):
         super().__init__()
-        self.sensor_flags = sensor_flags
+        self.init_args = init_args
         self.take_num = take_num
-        self.finger_name = finger_id[0]
-        self.finger_id = finger_id[1]
-        self.sensor_path = f"./sensor_calib_fsr/data/{side}/{self.finger_name}/"
+        self.save_path = "./logs/pycorc_recordings/"
 
         # FPS Calculator
         self.logger_frame_count = 0
@@ -31,14 +29,12 @@ class ubo_logger(QObject):
         self.logger_last_time = self.logger_timer.elapsed()
         self.elapsed_time = 0
         
-
         print("FMC Calib Logger Started")
     
     """
     Logging Callback
     """
     def log_current_data(self):
-        
         # update FPS
         print_text = f"Logging\n"
         self.logger_frame_count += 1
@@ -50,15 +46,9 @@ class ubo_logger(QObject):
             self.logger_last_time = self.logger_cur_time
             self.logger_frame_count = 0
 
-        # log sensor
-        if self.sensor_flags["esp"] == 1:
-            print_text += f'ESP:{self.esp_response["esp_fps"]}\n'
-            raw_data = self.esp_response["raw_data"][self.finger_id]
-            self.esp_arr.append([raw_data])
-        if self.sensor_flags["rft"] == 1 and hasattr(self, 'rft_response'):
-            print_text += f'RFT:{self.rft_response["rft_fps"]}\n'
-            mag = np.linalg.norm(self.rft_response["rft_data_arr"][:3])
-            self.rft_arr.append(np.concatenate((np.array([self.elapsed_time]),self.rft_response["rft_data_arr"],np.array([mag]))))
+        if self.init_args["corc"]["on"] and hasattr(self, 'corc_response'):
+            print_text += f'CORC:{self.corc_response["corc_fps"]}\n'
+            self.corc_arr.append(np.concatenate((np.array([self.elapsed_time]),self.corc_response["raw_data"])))
 
         # emit the signal
         data = {
@@ -78,22 +68,16 @@ class ubo_logger(QObject):
         self.poll_timer.start(int(1/100*1000))
         self.logger_start_time = self.logger_timer.elapsed()
 
-        # hand
-        if self.sensor_flags["esp"] == 1:
-            self.esp_arr = []
-        # rft
-        if self.sensor_flags["rft"] == 1:
-            self.rft_arr = []
+        # corc
+        if self.init_args["corc"]["on"]:
+            self.corc_arr = []
         
     """
     External Signals Callbacks
     """
     @Slot(dict)
-    def update_esp(self,esp_response):
-        self.esp_response = esp_response
-    @Slot(dict)
-    def update_rft(self,rft_response): # [self.rft_data_arr,self.rft_pose,self.rft_fps]
-        self.rft_response = rft_response
+    def update_corc(self,corc_response): # [self.rft_data_arr,self.rft_pose,self.rft_fps]
+        self.corc_response = corc_response
     @Slot()
     def stop(self):
         if hasattr(self, 'poll_timer'):
@@ -112,12 +96,15 @@ class ubo_logger(QObject):
             "logger_fps": 0.0
         })
 
-        if self.sensor_flags["esp"] == 1 and self.sensor_flags["rft"] == 1:
-            if hasattr(self, 'esp_response') and hasattr(self, 'rft_response'):
-                columns = ["time","Fx","Fy","Fz","Tx","Ty","Tz","F","1/R"]
-                total_arr = np.hstack((np.array(self.rft_arr),np.array(self.esp_arr)))
+        if self.init_args["corc"]["on"]:
+            if hasattr(self, 'corc_response'):
+                columns = ["time","corc time",
+                           "F1x","F1y","F1z","T1x","T1y","T1z",
+                           "F2x","F2y","F2z","T2x","T2y","T2z",
+                           "F3x","F3y","F3z","T3x","T3y","T3z"]
+                total_arr = self.corc_arr #np.hstack((np.array(self.rft_arr),np.array(self.esp_arr)))
                 df = pd.DataFrame(total_arr,columns=columns)
-                self.save_file(path=f"{self.sensor_path}/",df=df,item=f"force_{self.take_num}")
+                self.save_file(path=f"{self.save_path}/",df=df,item=f"UBORecord{self.take_num+1}Log")
         # emit the signal
         self.time_ready.emit({
             "print_text":"Logger Stopped \n",
