@@ -15,7 +15,7 @@ from PySide6 import QtWidgets
 from PySide6.QtGui import QShortcut
 from PySide6.QtCore import QThread,Qt,QMetaObject,Slot
 
-NUM_RFT = 1
+NUM_RFT = 3
 class ubo_gui(pycorc_gui):
     def __init__(self,init_args):
         self.init_args = init_args
@@ -31,10 +31,6 @@ class ubo_gui(pycorc_gui):
         if self.gui_args["force"]:
             self.ubo_wrenches_live_stream = self.init_live_stream(num_columns=2)
             
-        # import debugpy
-        # debugpy.listen(("localhost", 5678))
-        # print("Waiting for debugger…")
-        # debugpy.wait_for_client()
         """
         Initilization
         """
@@ -202,8 +198,11 @@ if __name__ == "__main__":
         argv = sys.argv[1]
     except:
         argv ={
-               "init_flags":{"corc":{"on":True,
-                                     "ip":"127.0.0.1",
+               "init_flags":{"corc":{"on":False,
+                                     "ip":"169.254.45.31",
+                                     "port":2048},
+                            "xsens":{"on":True,
+                                     "ip":"169.254.45.31",
                                      "port":2048},
                              "gui":{"on":True,
                                     "freq":60,
