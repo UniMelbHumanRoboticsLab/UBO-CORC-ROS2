@@ -1,6 +1,9 @@
 import socket
 import sys
 import pickle as pkl
+import os 
+
+sys.path.append(os.path.join(os.path.dirname(__file__)))
 from xsens_tools import *
 
 import numpy as np
@@ -14,24 +17,24 @@ from PySide6.QtCore import QObject, QThread, Signal,QTimer,Slot,QElapsedTimer, Q
 from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget
 
 joint_keys = [
-        'trunk_fe',
-        'trunk_aa',
-        'trunk_ie',
-        'scapula_de',
-        'scapula_pr',
-        'shoulder_fe',
-        'shoulder_aa',
-        'shoulder_ie',
-        'elbow_fe',
-        'elbow_ps',
-        'wrist_fe',
-        'wrist_dev'
+    'trunk_fe',
+    'trunk_aa',
+    'trunk_ie',
+    'scapula_de',
+    'scapula_pr',
+    'shoulder_fe',
+    'shoulder_aa',
+    'shoulder_ie',
+    'elbow_fe',
+    'elbow_ps',
+    'wrist_fe',
+    'wrist_dev'
 ]
 
 class xsens_server(QObject):
     data_ready = Signal(dict)
     stopped = Signal()
-    def __init__(self, ip="127.0.0.5", port=9764):
+    def __init__(self, ip="0.0.0.0", port=9764):
         super().__init__()
         self.ip = ip
         self.port = port
@@ -40,7 +43,7 @@ class xsens_server(QObject):
         self.xsens_timer = QElapsedTimer() # use the system clock
         self.xsens_timer.start()
         self.xsens_frame_count = 0
-        self.corc_fps = 0
+        self.xsens_fps = 0
         self.xsens_cur_time = self.xsens_timer.elapsed()
         self.xsens_last_time = self.xsens_timer.elapsed()
 
@@ -59,7 +62,7 @@ class xsens_server(QObject):
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow immediate reuse of the port
 
         # Connection
-        print('CORC FLNLClient: connecting to ('+self.ip+':'+str(self.port)+')...')
+        print('XSENServer: connecting to ('+self.ip+':'+str(self.port)+')...')
         try:
             self.server_socket.bind((self.ip, self.port))
             self.server_socket.listen(1)
@@ -133,6 +136,7 @@ class xsens_server(QObject):
     """
     def start_worker(self):  
         self.reconnect()
+        print("XSENS XSENS")
         self.poll_timer = QTimer()
         self.poll_timer.setTimerType(Qt.PreciseTimer)
         self.poll_timer.timeout.connect(self.read_xsens_data)

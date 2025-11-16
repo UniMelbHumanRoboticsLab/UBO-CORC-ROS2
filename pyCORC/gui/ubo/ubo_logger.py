@@ -50,6 +50,9 @@ class ubo_logger(QObject):
             print_text += f'CORC:{self.corc_response["corc_fps"]}\n'
             self.corc_arr.append(np.concatenate((np.array([self.elapsed_time]),self.corc_response["raw_data"])))
 
+        if self.init_args["xsens"]["on"] and hasattr(self, 'xsens_response'):
+            print_text += f'XSENS:{self.xsens_response["xsens_fps"]}\n'
+
         # emit the signal
         data = {
             "print_text":print_text,
@@ -78,6 +81,9 @@ class ubo_logger(QObject):
     @Slot(dict)
     def update_corc(self,corc_response): # [self.rft_data_arr,self.rft_pose,self.rft_fps]
         self.corc_response = corc_response
+    @Slot(dict)
+    def update_xsens(self,xsens_response): # [self.rft_data_arr,self.rft_pose,self.rft_fps]
+        self.xsens_response = xsens_response
     @Slot()
     def stop(self):
         if hasattr(self, 'poll_timer'):

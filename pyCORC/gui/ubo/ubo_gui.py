@@ -8,6 +8,7 @@ from base.pycorc_gui import pycorc_gui
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 # print(sys.path)
 from pycorc_io.corc.corc_FLNL_client import corc_FLNL_client
+from pycorc_io.xsens.xsens_server import xsens_server
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
@@ -20,6 +21,7 @@ class ubo_gui(pycorc_gui):
     def __init__(self,init_args):
         self.init_args = init_args
         self.corc_args = self.init_args["init_flags"]["corc"]
+        self.xsens_args = self.init_args["init_flags"]["xsens"]
         self.gui_args = self.init_args["init_flags"]["gui"]
         self.log_args = self.init_args["init_flags"]["log"]
 
@@ -45,7 +47,7 @@ class ubo_gui(pycorc_gui):
         print(f"Threads Opened:{self.num_opened_threads}")
     def init_corc(self):
         # init response label
-        self.corc_label = self.init_response_label(size=[500,50])
+        self.corc_label = self.init_response_label(size=[525,100])
         # init corc thread and worker
         self.corc_thread = QThread()
         self.corc_worker = corc_FLNL_client(ip=self.corc_args["ip"],port=self.corc_args["port"])
@@ -56,6 +58,12 @@ class ubo_gui(pycorc_gui):
             for i in range(NUM_RFT):
                 self.ubo_F_live_stream_plots.append(self.add_live_stream_plot(live_stream=self.ubo_wrenches_live_stream,sensor_name= f"UBO_{i} Force",unit="N",dim=3))
                 self.ubo_M_live_stream_plots.append(self.add_live_stream_plot(live_stream=self.ubo_wrenches_live_stream,sensor_name= f"UBO_{i} Moment",unit="Nm",dim=3))
+    def init_xsens(self):
+        # init response label
+        self.xsens_label = self.init_response_label(size=[300,200])
+        # init corc thread and worker
+        self.xsens_thread = QThread()
+        self.xsens_worker = xsens_server(ip=self.xsens_args["ip"],port=self.xsens_args["port"])
     def init_logger(self):
         # init response label
         self.logger_label = self.init_response_label(size=[500,150])
@@ -82,6 +90,8 @@ class ubo_gui(pycorc_gui):
         """
         if self.corc_args["on"]:
             self.init_corc()
+        if self.xsens_args["on"]:
+            self.init_xsens()
         if self.log_args["on"]:
             self.init_logger()
             self.logger_response = {
@@ -109,12 +119,26 @@ class ubo_gui(pycorc_gui):
             self.corc_worker.stopped.connect(self.corc_thread.exit)
             # connect thread finished to close app
             self.corc_thread.finished.connect(self.close_app)
+        if self.xsens_args["on"]:
+            # move worker to thread
+            self.xsens_worker.moveToThread(self.xsens_thread)
+            # connect to gui
+            self.xsens_worker.data_ready.connect(self.update_xsens,type=Qt.ConnectionType.QueuedConnection)
+            # connect thread start to start worker   
+            self.xsens_thread.started.connect(self.xsens_worker.start_worker)
+            self.xsens_thread.started.connect(self.add_opened_threads)
+            # connect worker stop to stop thread at closeup
+            self.xsens_worker.stopped.connect(self.xsens_thread.exit)
+            # connect thread finished to close app
+            self.xsens_thread.finished.connect(self.close_app)
         if self.log_args["on"]:
             # move worker to thread
             self.logger_worker.moveToThread(self.logger_thread)
-            # connect corc to logger
+            # connect corc and xsens to logger
             if self.corc_args["on"]:
                 self.corc_worker.data_ready.connect(self.logger_worker.update_corc,type=Qt.ConnectionType.QueuedConnection)
+            if self.xsens_args["on"]:
+                self.xsens_worker.data_ready.connect(self.logger_worker.update_xsens,type=Qt.ConnectionType.QueuedConnection)
             # connect logger to sensor gui
             self.logger_worker.time_ready.connect(self.update_logger,type=Qt.ConnectionType.QueuedConnection)
             # connect thread start to add opened threads  
@@ -132,6 +156,9 @@ class ubo_gui(pycorc_gui):
         if self.corc_args["on"]:
             self.corc_thread.start()
             self.corc_thread.setPriority(QThread.Priority.TimeCriticalPriority)
+        if self.xsens_args["on"]:
+            self.xsens_thread.start()
+            self.xsens_thread.setPriority(QThread.Priority.TimeCriticalPriority)
         if self.log_args["on"]:
             self.logger_thread.start()
             self.logger_thread.setPriority(QThread.Priority.TimeCriticalPriority)
@@ -142,6 +169,8 @@ class ubo_gui(pycorc_gui):
     @Slot(dict)
     def update_corc(self,corc_response):
         self.corc_response = corc_response
+    def update_xsens(self,xsens_response):
+        self.xsens_response = xsens_response
     @Slot(dict)
     def update_logger(self,logger_response):
         self.logger_response = logger_response
@@ -159,13 +188,31 @@ class ubo_gui(pycorc_gui):
             # update rft info
             corc_data = self.corc_response["raw_data"]
             fps = self.corc_response["corc_fps"]
-            self.update_response_label(self.corc_label,f"FPS:{fps}\nCORC Running Time:{corc_data[0]}s\n{corc_data[1:]}")
+            txt = ""
+            for i in range(NUM_RFT):
+                txt += f"UBO_{i} Force(N): {corc_data[1+i*6]:8.4f} {corc_data[2+i*6]:8.4f} {corc_data[3+i*6]:8.4f} | Moment(Nm): {corc_data[4+i*6]:8.4f} {corc_data[5+i*6]:8.4f} {corc_data[6+i*6]:8.4f}\n"
+            self.update_response_label(self.corc_label,f"FPS:{fps}\nCORC Running Time:{corc_data[0]}s\n{txt}")
             if self.gui_args["on"] and self.gui_args["force"]:
                 for i in range(NUM_RFT):
                     force_data = corc_data[1+i*6:1+i*6+6]
                     # pass
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_F_live_stream_plots[i],force_data,dim=3)
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_M_live_stream_plots[i],force_data[3:],dim=3)
+        if hasattr(self, 'xsens_response'):
+            # update rft info
+            timecode = self.xsens_response["timecode"]
+            fps = self.xsens_response["xsens_fps"]
+            right = self.xsens_response["right_angle"]
+            left = self.xsens_response["left_angle"]
+
+            txt = ""
+            # print(right.keys(),left.keys())
+            for key in  ['trunk_fe','trunk_aa','trunk_ie',
+                        'scapula_de','scapula_pr',
+                        'shoulder_fe','shoulder_aa','shoulder_ie',
+                        'elbow_fe','elbow_ps','wrist_fe','wrist_dev']:
+                txt += f"{key:15}: {left[key]:8.4f} {right[key]:8.4f}\n"
+            self.update_response_label(self.xsens_label,f"FPS:{fps}\nXSENS Timecode:{timecode}\n{txt}")
         if hasattr(self, 'logger_response'):
             print_text = self.logger_response["print_text"]
             fps = self.logger_response["logger_fps"]
@@ -179,6 +226,8 @@ class ubo_gui(pycorc_gui):
     def close_workers(self):
         if hasattr(self, 'corc_response'):
             self.close_worker_thread(self.corc_worker)
+        if hasattr(self, 'xsens_response'):
+            self.close_worker_thread(self.xsens_worker)
         if hasattr(self, 'logger_response'):
             self.close_worker_thread(self.logger_worker)
     @Slot()
@@ -198,16 +247,16 @@ if __name__ == "__main__":
         argv = sys.argv[1]
     except:
         argv ={
-               "init_flags":{"corc":{"on":False,
-                                     "ip":"169.254.45.31",
+               "init_flags":{"corc":{"on":True,
+                                     "ip":"127.0.0.1",
                                      "port":2048},
                             "xsens":{"on":True,
-                                     "ip":"169.254.45.31",
-                                     "port":2048},
+                                     "ip":"0.0.0.0",
+                                     "port":9764},
                              "gui":{"on":True,
                                     "freq":60,
                                     "3d":False,
-                                    "force":True},
+                                    "force":False},
                              "log":{"on":True}
                              },
                "take_num":0}
