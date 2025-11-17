@@ -3,18 +3,17 @@ import os, sys,json
 from ubo_logger import ubo_logger
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from base.pycorc_gui import pycorc_gui
+from base.pycorc_gui import *
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
-# print(sys.path)
 from pycorc_io.corc.corc_FLNL_client import corc_FLNL_client
 from pycorc_io.xsens.xsens_server import xsens_server
+from pycorc_io.xsens.ub_pckg.ub import ub
 
-import numpy as np
-from scipy.spatial.transform import Rotation as R
 from PySide6 import QtWidgets
 from PySide6.QtGui import QShortcut
 from PySide6.QtCore import QThread,Qt,QMetaObject,Slot
+
 
 NUM_RFT = 3
 class ubo_gui(pycorc_gui):
@@ -38,6 +37,7 @@ class ubo_gui(pycorc_gui):
         """
         self.init_IOs()
         self.init_shortcuts()
+        # init_debug()
 
     """
     Init Sensor Worker / Thread / GUI Helper Functions
@@ -64,6 +64,29 @@ class ubo_gui(pycorc_gui):
         # init corc thread and worker
         self.xsens_thread = QThread()
         self.xsens_worker = xsens_server(ip=self.xsens_args["ip"],port=self.xsens_args["port"])
+        # init xsens ub model
+        body_params = {'torso':50/100,
+                        'clav': 20/100,
+                        'ua_l': 34/100,
+                        'fa_l': 28/100,
+                        'ha_l': 0.05,
+                        'm_ua': 2.0,
+                        'm_fa': 1.1+0.23+0.6}
+        
+        self.skeleton = {
+            "right":{},
+            "left":{}
+        }
+        # init xsens skeleton for 3d gui
+        if self.gui_args["on"] and self.gui_args["3d"]:
+            for side in ["right","left"]:
+                self.skeleton[side]["ub_xsens"] = ub(body_params,model="xsens",arm_side=side)
+                robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine([0]*12)
+                body = self.init_line(points=robot_joints.t,color="purple")
+                hand = self.init_frame(pos=robot_ee.t,rot=robot_ee.R*0.1)
+                self.skeleton[side]["body"] = body
+                self.skeleton[side]["hand"] = hand
+
     def init_logger(self):
         # init response label
         self.logger_label = self.init_response_label(size=[500,150])
@@ -181,7 +204,7 @@ class ubo_gui(pycorc_gui):
     def update_gui(self):
         super().update_gui()
         if self.gui_args["on"]:
-            # update live stream
+            # update live stream time buffer
             if self.gui_args["force"]:
                 self.update_live_stream_buffer(live_stream=self.ubo_wrenches_live_stream)
         if hasattr(self, 'corc_response'):
@@ -195,24 +218,31 @@ class ubo_gui(pycorc_gui):
             if self.gui_args["on"] and self.gui_args["force"]:
                 for i in range(NUM_RFT):
                     force_data = corc_data[1+i*6:1+i*6+6]
-                    # pass
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_F_live_stream_plots[i],force_data,dim=3)
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_M_live_stream_plots[i],force_data[3:],dim=3)
         if hasattr(self, 'xsens_response'):
             # update rft info
             timecode = self.xsens_response["timecode"]
             fps = self.xsens_response["xsens_fps"]
-            right = self.xsens_response["right_angle"]
-            left = self.xsens_response["left_angle"]
+            right = self.xsens_response["right"]["dict"]
+            left = self.xsens_response["left"]["dict"]
 
-            txt = ""
-            # print(right.keys(),left.keys())
+            txt = f"XSENS Timecode:{timecode}\n"
+
             for key in  ['trunk_fe','trunk_aa','trunk_ie',
                         'scapula_de','scapula_pr',
                         'shoulder_fe','shoulder_aa','shoulder_ie',
                         'elbow_fe','elbow_ps','wrist_fe','wrist_dev']:
                 txt += f"{key:15}: {left[key]:8.4f} {right[key]:8.4f}\n"
-            self.update_response_label(self.xsens_label,f"FPS:{fps}\nXSENS Timecode:{timecode}\n{txt}")
+
+            if self.gui_args["on"] and self.gui_args["3d"]:
+                for side in ["right","left"]:
+                    ub_posture = self.xsens_response[side]["list"]
+                    robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(ub_posture)
+                    self.update_line(self.skeleton[side]["body"],points=robot_joints.t)
+                    self.update_frame(self.skeleton[side]["hand"],pos=robot_ee.t,rot=robot_ee.R*0.1)
+
+            self.update_response_label(self.xsens_label,f"FPS:{fps}\n{txt}")
         if hasattr(self, 'logger_response'):
             print_text = self.logger_response["print_text"]
             fps = self.logger_response["logger_fps"]
@@ -247,7 +277,7 @@ if __name__ == "__main__":
         argv = sys.argv[1]
     except:
         argv ={
-               "init_flags":{"corc":{"on":True,
+               "init_flags":{"corc":{"on":False,
                                      "ip":"127.0.0.1",
                                      "port":2048},
                             "xsens":{"on":True,
@@ -255,7 +285,7 @@ if __name__ == "__main__":
                                      "port":9764},
                              "gui":{"on":True,
                                     "freq":60,
-                                    "3d":False,
+                                    "3d":True,
                                     "force":False},
                              "log":{"on":True}
                              },
@@ -273,3 +303,6 @@ if __name__ == "__main__":
     # p = psutil.Process(os.getpid())
     # p.nice(psutil.REALTIME_PRIORITY_CLASS)  # or REALTIME_PRIORITY_CLASS
     sys.exit(app.exec())
+
+
+    # 169.254.45.31

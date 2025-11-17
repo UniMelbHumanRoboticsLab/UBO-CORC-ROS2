@@ -111,23 +111,23 @@ class xsens_server(QObject):
                 data = {
                     "timecode":self.timecode,
                     "xsens_fps":self.xsens_fps,
-                    "right_angle":self.right,
-                    "left_angle":self.left,
+                    "right":self.right,
+                    "left":self.left,
                 }
             else:
                 data = {
                     "timecode":"",
                     "xsens_fps":self.xsens_fps,
-                    "right_angle":{},
-                    "left_angle":{},
+                    "right":{},
+                    "left":{},
                     
                 }
             self.data_ready.emit(data)
         except Exception as e:
             data = {
                 "timecode":"",
-                "right_angle":{},
-                "left_angle":{},
+                "right":{},
+                "left":{},
                 "xsens_fps":self.xsens_fps,
             }
             self.data_ready.emit(data)
@@ -136,7 +136,6 @@ class xsens_server(QObject):
     """
     def start_worker(self):  
         self.reconnect()
-        print("XSENS XSENS")
         self.poll_timer = QTimer()
         self.poll_timer.setTimerType(Qt.PreciseTimer)
         self.poll_timer.timeout.connect(self.read_xsens_data)
@@ -185,8 +184,8 @@ class MainWindow(QMainWindow):
 
     def update_label(self, text):
         txt = text["timecode"] + "XSENS FPS: " + f"{text['xsens_fps']:.2f}\n"
-        right = text["right_angle"]
-        left = text["left_angle"]
+        right = text["right"]["dict"]
+        left = text["left"]["dict"]
 
         # print(right.keys(),left.keys())
         for key in joint_keys:

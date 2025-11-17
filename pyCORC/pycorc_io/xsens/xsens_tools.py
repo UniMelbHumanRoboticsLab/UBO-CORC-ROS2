@@ -53,7 +53,7 @@ def parse_UL_joint_angle(message: bytes):
     JOINT_LEFT_WRIST = 7
     JOINT_TRUNK = 8
 
-    right_joints = {
+    right_dict = {
         'trunk_fe':z_arr[JOINT_TRUNK],
         'trunk_aa':x_arr[JOINT_TRUNK],
         'trunk_ie':y_arr[JOINT_TRUNK],
@@ -68,7 +68,7 @@ def parse_UL_joint_angle(message: bytes):
         'wrist_dev':x_arr[JOINT_RIGHT_WRIST]
     }
 
-    left_joints = {
+    left_dict = {
         'trunk_fe':z_arr[JOINT_TRUNK],
         'trunk_aa':x_arr[JOINT_TRUNK],
         'trunk_ie':y_arr[JOINT_TRUNK],
@@ -82,4 +82,4 @@ def parse_UL_joint_angle(message: bytes):
         'wrist_fe':z_arr[JOINT_LEFT_WRIST],
         'wrist_dev':x_arr[JOINT_LEFT_WRIST]
     }
-    return right_joints,left_joints
+    return {"dict":right_dict,"list":list(right_dict.values())},{"dict":left_dict,"list":list(left_dict.values())}

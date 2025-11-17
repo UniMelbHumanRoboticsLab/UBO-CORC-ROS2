@@ -21,8 +21,17 @@ pg.setConfigOptions(useOpenGL=True)
 pg.setConfigOptions(useCupy=True)
 pg.setConfigOptions(useNumba=True)
 pg.setConfigOptions(crashWarning=True)
-# pg.systemInfo()
 
+import debugpy
+def init_debug():
+    debugpy.listen(("localhost", 5678))
+    print("Waiting for debugger…")
+    debugpy.wait_for_client()
+
+def debug_break():
+    import debugpy
+    debugpy.breakpoint()
+    
 N_buffer = 50
 # Disable mouse wheel zooming in plots for pyqtgraph
 class NoWheelViewBox(pg.ViewBox):
