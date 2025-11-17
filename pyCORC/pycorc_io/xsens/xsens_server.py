@@ -65,8 +65,10 @@ class xsens_server(QObject):
         print('XSENServer: connecting to ('+self.ip+':'+str(self.port)+')...')
         try:
             self.server_socket.bind((self.ip, self.port))
-            self.server_socket.listen(1)
+            self.server_socket.listen()
             self.server_conn,addr = self.server_socket.accept()
+            # self.server_socket.setblocking(True)
+            # print(self.server_socket.getblocking())
         except Exception as e:
             print('XSENS: Connection failed! (', e, ')')
             self.Connected = False
@@ -87,6 +89,8 @@ class xsens_server(QObject):
             
             self.left=left
             self.timecode = timecode
+            self.Connected=True
+            # print("WHERE THE HELL")
         except BlockingIOError:
             print("IO Error")
         except (BrokenPipeError, ConnectionResetError):
@@ -130,6 +134,7 @@ class xsens_server(QObject):
                 "left":{},
                 "xsens_fps":self.xsens_fps,
             }
+            # print(e)
             self.data_ready.emit(data)
     """
     Initialization Callback
@@ -183,14 +188,15 @@ class MainWindow(QMainWindow):
         self.thread.start()
 
     def update_label(self, text):
-        txt = text["timecode"] + "XSENS FPS: " + f"{text['xsens_fps']:.2f}\n"
-        right = text["right"]["dict"]
-        left = text["left"]["dict"]
+        if text:
+            txt = text["timecode"] + "XSENS FPS: " + f"{text['xsens_fps']:.2f}\n"
+            right = text["right"]["dict"]
+            left = text["left"]["dict"]
 
-        # print(right.keys(),left.keys())
-        for key in joint_keys:
-            txt += f"{key:15}: {left[key]:8.4f} {right[key]:8.4f}\n"
-        self.label.setText(txt)
+            # print(right.keys(),left.keys())
+            for key in joint_keys:
+                txt += f"{key:15}: {left[key]:8.4f} {right[key]:8.4f}\n"
+            self.label.setText(txt)
 
     def cleanup(self):
         QMetaObject.invokeMethod(self.worker, "stop", Qt.ConnectionType.QueuedConnection)

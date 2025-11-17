@@ -13,7 +13,7 @@ from PySide6.QtCore import QTimer,Qt
 from PySide6.QtGui import QFont
 from vispy import scene
 from vispy.app import use_app
-# print(use_app('pyside6'))
+print(use_app('pyside6'))
 
 import pyqtgraph as pg # use dev pyqtgraph
 pg.setConfigOptions(antialias=False)     # lines render faster
@@ -45,7 +45,7 @@ class pycorc_gui(QtWidgets.QMainWindow):
     def __init__(self,freq=100,gui_3d=True):
         super().__init__()
         self.setWindowTitle("Live Sensor Plot")
-        self.setWindowState(Qt.WindowMaximized)
+        # self.setWindowState(Qt.WindowMaximized) # cannot use in ubuntu
 
         # self.container and main layout boxes, this is the main box: DONT TOUCH
         self.container = QtWidgets.QWidget()

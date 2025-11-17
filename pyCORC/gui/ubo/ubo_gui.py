@@ -79,10 +79,10 @@ class ubo_gui(pycorc_gui):
         }
         # init xsens skeleton for 3d gui
         if self.gui_args["on"] and self.gui_args["3d"]:
-            for side in ["right","left"]:
+            for side,color in zip(["right","left"],["purple"   , "orange"]):
                 self.skeleton[side]["ub_xsens"] = ub(body_params,model="xsens",arm_side=side)
                 robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine([0]*12)
-                body = self.init_line(points=robot_joints.t,color="purple")
+                body = self.init_line(points=robot_joints.t,color=color)
                 hand = self.init_frame(pos=robot_ee.t,rot=robot_ee.R*0.1)
                 self.skeleton[side]["body"] = body
                 self.skeleton[side]["hand"] = hand
@@ -194,6 +194,7 @@ class ubo_gui(pycorc_gui):
         self.corc_response = corc_response
     def update_xsens(self,xsens_response):
         self.xsens_response = xsens_response
+        # print("HI")
     @Slot(dict)
     def update_logger(self,logger_response):
         self.logger_response = logger_response
@@ -277,7 +278,7 @@ if __name__ == "__main__":
         argv = sys.argv[1]
     except:
         argv ={
-               "init_flags":{"corc":{"on":False,
+               "init_flags":{"corc":{"on":True,
                                      "ip":"127.0.0.1",
                                      "port":2048},
                             "xsens":{"on":True,
