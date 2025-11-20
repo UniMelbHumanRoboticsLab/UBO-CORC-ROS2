@@ -1,10 +1,6 @@
 import os
 import numpy as np
-np.set_printoptions(
-    precision=4,
-    linewidth=np.inf,   
-    formatter={'float_kind': lambda x: f"{x:.4f}"}
-)
+
 import pandas as pd
 
 from PySide6.QtCore import QObject, Signal,QTimer,Slot,QElapsedTimer,Qt

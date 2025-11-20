@@ -1,6 +1,13 @@
 import os, sys,json
+import numpy as np
+np.set_printoptions(
+    precision=4,
+    linewidth=np.inf,   
+    formatter={'float_kind': lambda x: f"{x:.4f}"}
+)
 
 from ubo_logger import ubo_logger
+
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from base.pycorc_gui import *
@@ -71,7 +78,8 @@ class ubo_gui(pycorc_gui):
                         'fa_l': 28/100,
                         'ha_l': 0.05,
                         'm_ua': 2.0,
-                        'm_fa': 1.1+0.23+0.6}
+                        'm_fa': 1.1+0.23+0.6,
+                        "ft_offsets": [0.05,0.05,0.05]}
         
         self.skeleton = {
             "right":{},
@@ -79,13 +87,13 @@ class ubo_gui(pycorc_gui):
         }
         # init xsens skeleton for 3d gui
         if self.gui_args["on"] and self.gui_args["3d"]:
-            for side,color in zip(["right","left"],["purple"   , "orange"]):
-                self.skeleton[side]["ub_xsens"] = ub(body_params,model="xsens",arm_side=side)
+            for side,color in zip(["right","left"],["purple", "orange"]):
+                self.skeleton[side]["ub_xsens"] = ub(body_params,model="ubo",arm_side=side)
                 robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine([0]*12)
                 body = self.init_line(points=robot_joints.t,color=color)
-                hand = self.init_frame(pos=robot_ee.t,rot=robot_ee.R*0.1)
+                ees = [self.init_frame(pos=ee_pose.t,rot=ee_pose.R*0.1) for ee_pose in robot_ee]
                 self.skeleton[side]["body"] = body
-                self.skeleton[side]["hand"] = hand
+                self.skeleton[side]["ees"] = ees
 
     def init_logger(self):
         # init response label
@@ -241,7 +249,8 @@ class ubo_gui(pycorc_gui):
                     ub_posture = self.xsens_response[side]["list"]
                     robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(ub_posture)
                     self.update_line(self.skeleton[side]["body"],points=robot_joints.t)
-                    self.update_frame(self.skeleton[side]["hand"],pos=robot_ee.t,rot=robot_ee.R*0.1)
+                    for frame,pose in zip(self.skeleton[side]["ees"],robot_ee):
+                        self.update_frame(frame,pos=pose.t,rot=pose.R*0.1)
 
             self.update_response_label(self.xsens_label,f"FPS:{fps}\n{txt}")
         if hasattr(self, 'logger_response'):
@@ -278,7 +287,7 @@ if __name__ == "__main__":
         argv = sys.argv[1]
     except:
         argv ={
-               "init_flags":{"corc":{"on":True,
+               "init_flags":{"corc":{"on":False,
                                      "ip":"127.0.0.1",
                                      "port":2048},
                             "xsens":{"on":True,
