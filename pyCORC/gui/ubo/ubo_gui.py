@@ -79,6 +79,7 @@ class ubo_gui(pycorc_gui):
                         'ha_l': 0.05,
                         'm_ua': 2.0,
                         'm_fa': 1.1+0.23+0.6,
+                        "shoulder_aa_offset": [ 17,10],
                         "ft_offsets": [0.05,0.05,0.05]}
         
         self.skeleton = {
@@ -97,7 +98,7 @@ class ubo_gui(pycorc_gui):
 
     def init_logger(self):
         # init response label
-        self.logger_label = self.init_response_label(size=[500,150])
+        self.logger_label = self.init_response_label(size=[250,150])
         self.logger_thread = QThread()
         self.logger_worker = ubo_logger(init_args = self.init_args["init_flags"],
                                         take_num  = self.init_args["take_num"])
@@ -233,16 +234,16 @@ class ubo_gui(pycorc_gui):
             # update rft info
             timecode = self.xsens_response["timecode"]
             fps = self.xsens_response["xsens_fps"]
-            right = self.xsens_response["right"]["dict"]
-            left = self.xsens_response["left"]["dict"]
+            right_list = self.xsens_response["right"]["list"]
+            left_list = self.xsens_response["left"]["list"]
 
             txt = f"XSENS Timecode:{timecode}\n"
 
-            for key in  ['trunk_fe','trunk_aa','trunk_ie',
+            for i,key in  enumerate(['trunk_ie','trunk_aa','trunk_fe',
                         'scapula_de','scapula_pr',
                         'shoulder_fe','shoulder_aa','shoulder_ie',
-                        'elbow_fe','elbow_ps','wrist_fe','wrist_dev']:
-                txt += f"{key:15}: {left[key]:8.4f} {right[key]:8.4f}\n"
+                        'elbow_fe','elbow_ps','wrist_fe','wrist_dev']):
+                txt += f"{key:15}: {left_list[i]:8.4f} {right_list[i]:8.4f}\n"
 
             if self.gui_args["on"] and self.gui_args["3d"]:
                 for side in ["right","left"]:

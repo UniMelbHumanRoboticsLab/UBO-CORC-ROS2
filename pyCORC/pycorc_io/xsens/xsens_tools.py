@@ -25,11 +25,12 @@ def parse_UL_joint_angle(message: bytes):
     JOINT_LEFT_SHOULDER = 11
     JOINT_LEFT_ELBOW = 12
     JOINT_LEFT_WRIST = 13
-    JOINT_TRUNK = 27
+    JOINT_TRUNK_A = 25
+    JOINT_TRUNK_B = 27
 
     joints_list = [JOINT_RIGHT_T4_SHOULDER,JOINT_RIGHT_SHOULDER,JOINT_RIGHT_ELBOW,JOINT_RIGHT_WRIST,
                     JOINT_LEFT_T4_SHOULDER,JOINT_LEFT_SHOULDER,JOINT_LEFT_ELBOW,JOINT_LEFT_WRIST,
-                    JOINT_TRUNK] # get the order from Analyze Pro
+                    JOINT_TRUNK_A, JOINT_TRUNK_B] # get the order from Analyze Pro
     packet_size = 20
     base_offsets = np.array(joints_list) * packet_size
 
@@ -51,12 +52,13 @@ def parse_UL_joint_angle(message: bytes):
     JOINT_LEFT_SHOULDER = 5
     JOINT_LEFT_ELBOW = 6
     JOINT_LEFT_WRIST = 7
-    JOINT_TRUNK = 8
+    JOINT_TRUNK_A = 8
+    JOINT_TRUNK_B = 9
 
     right_dict = {
-        'trunk_fe':z_arr[JOINT_TRUNK],
-        'trunk_aa':x_arr[JOINT_TRUNK],
-        'trunk_ie':y_arr[JOINT_TRUNK],
+        'trunk_ie':y_arr[JOINT_TRUNK_A],
+        'trunk_aa':x_arr[JOINT_TRUNK_B],
+        'trunk_fe':z_arr[JOINT_TRUNK_B],
         'scapula_de':z_arr[JOINT_RIGHT_T4_SHOULDER],
         'scapula_pr':y_arr[JOINT_RIGHT_T4_SHOULDER],
         'shoulder_fe':z_arr[JOINT_RIGHT_SHOULDER],
@@ -69,9 +71,9 @@ def parse_UL_joint_angle(message: bytes):
     }
 
     left_dict = {
-        'trunk_fe':z_arr[JOINT_TRUNK],
-        'trunk_aa':x_arr[JOINT_TRUNK],
-        'trunk_ie':y_arr[JOINT_TRUNK],
+        'trunk_ie':y_arr[JOINT_TRUNK_A],
+        'trunk_aa':x_arr[JOINT_TRUNK_B],
+        'trunk_fe':z_arr[JOINT_TRUNK_B],
         'scapula_de':z_arr[JOINT_LEFT_T4_SHOULDER],
         'scapula_pr':y_arr[JOINT_LEFT_T4_SHOULDER],
         'shoulder_fe':z_arr[JOINT_LEFT_SHOULDER],

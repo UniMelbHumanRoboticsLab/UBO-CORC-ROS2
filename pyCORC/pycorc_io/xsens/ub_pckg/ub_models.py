@@ -19,7 +19,7 @@ def unitV(vec):
     return vec/np.linalg.norm(vec)
 
 ############### All Available Upper Limb Models ##############################
-def xsens_ub_12dof(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua: float = 0, m_fa: float = 0,arm_side:str = "right") -> rbt.Robot:
+def xsens_ub_12dof(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua: float = 0, m_fa: float = 0,shoulder_aa_offset:float = 16, arm_side:str = "right") -> rbt.Robot:
     """
     xsens_ub_12dof Create a Robot of robotic toolbox Xsens compatible upper body (pelvis to hand)
     torso: torso length
@@ -40,7 +40,7 @@ def xsens_ub_12dof(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float,
         L.append(rbt.RevoluteMDH(d=0,a=torso,alpha=np.pi/2,offset=np.pi/2,name='scapula_de'))
         L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='scapula_pr'))
         L.append(rbt.RevoluteMDH(d=clav,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_fe'))
-        L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_aa'))
+        L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2-np.deg2rad(shoulder_aa_offset[0]),name='shoulder_aa'))
         L.append(rbt.RevoluteMDH(d=-ua_l,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_ie'))
         L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_fe'))
         L.append(rbt.RevoluteMDH(d=-fa_l,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_ps'))
@@ -61,7 +61,7 @@ def xsens_ub_12dof(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float,
         L.append(rbt.RevoluteMDH(d=0,a=-torso,alpha=np.pi/2,offset=np.pi/2,name='scapula_de'))
         L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='scapula_pr'))
         L.append(rbt.RevoluteMDH(d=-clav,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_fe'))
-        L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_aa'))
+        L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2-np.deg2rad(shoulder_aa_offset[1]),name='shoulder_aa'))
         L.append(rbt.RevoluteMDH(d=ua_l,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_ie'))
         L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_fe'))
         L.append(rbt.RevoluteMDH(d=fa_l,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_ps'))
@@ -76,7 +76,7 @@ def xsens_ub_12dof(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float,
     return xsens
 
 
-def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua: float = 0, m_fa: float = 0,ft_offsets: list = [0,0,0], arm_side:str = "right") -> rbt.Robot:
+def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua: float = 0, m_fa: float = 0,ft_offsets: list = [0,0,0], shoulder_aa_offset:float = 16, arm_side:str = "right") -> rbt.Robot:
     """
     ubo_robot xsens_upper_body_model + the 3 RFT sensors
     torso: torso length
@@ -92,7 +92,7 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
     """
     Entire Upper Body
     """
-    ub = xsens_ub_12dof(torso,clav,ua_l,fa_l,ha_l,m_ua,m_fa,arm_side)
+    ub = xsens_ub_12dof(torso,clav,ua_l,fa_l,ha_l,m_ua,m_fa,shoulder_aa_offset,arm_side)
     rbts.append(ub)
 
     """
@@ -128,7 +128,7 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
         ua_link.append(rbt.RevoluteMDH(d=0,a=torso,alpha=np.pi/2,offset=np.pi/2,name='scapula_de'))
         ua_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='scapula_pr'))
         ua_link.append(rbt.RevoluteMDH(d=clav,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_fe'))
-        ua_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_aa'))
+        ua_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2-np.deg2rad(shoulder_aa_offset[0]),name='shoulder_aa'))
         ua_link.append(rbt.RevoluteMDH(d=-ua_l/2,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_ie'))
         ua_rbt = rbt.DHRobot(ua_link)
 
@@ -148,7 +148,7 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
         fa_link.append(rbt.RevoluteMDH(d=0,a=torso,alpha=np.pi/2,offset=np.pi/2,name='scapula_de'))
         fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='scapula_pr'))
         fa_link.append(rbt.RevoluteMDH(d=clav,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_fe'))
-        fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_aa'))
+        fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2-np.deg2rad(shoulder_aa_offset[0]),name='shoulder_aa'))
         fa_link.append(rbt.RevoluteMDH(d=-ua_l,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_ie'))
         fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_fe'))
         fa_link.append(rbt.RevoluteMDH(d=-fa_l/2,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_ps'))

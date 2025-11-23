@@ -22,7 +22,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__)))
 from ub_models import *
 
 class ub():
-    def __init__(self, body_params={'torso':0.5,'clav':0.2,'ua_l': 0.3, 'fa_l': 0.25, 'ha_l': 0.1, 'm_ua': 2.0, 'm_fa':1.1+0.23+0.6,"ft_offsets": [0.1,0.1,0.1]},model='xsens',arm_side="right"):
+    def __init__(self, body_params={'torso':0.5,'clav':0.2,'ua_l': 0.3, 'fa_l': 0.25, 'ha_l': 0.1, 'm_ua': 2.0, 'm_fa':1.1+0.23+0.6,"shoulder_aa_offset":[16],"ft_offsets": [0.1,0.1,0.1]},model='xsens',arm_side="right"):
 
         self.model = model
         if self.model == 'ubo':
@@ -34,6 +34,7 @@ class ub():
                 ha_l=body_params['ha_l'],
                 m_ua=body_params['m_ua'],
                 m_fa=body_params['m_fa'],
+                shoulder_aa_offset=body_params['shoulder_aa_offset'],
                 ft_offsets =body_params['ft_offsets'],
                 arm_side=arm_side
             )
@@ -47,6 +48,7 @@ class ub():
                 ha_l=body_params['ha_l'],
                 m_ua=body_params['m_ua'],
                 m_fa=body_params['m_fa'],
+                shoulder_aa_offset=body_params['shoulder_aa_offset'],
                 arm_side=arm_side
             )]
             self.ee_names = ["hand"]
@@ -133,7 +135,7 @@ class ub():
 
         return joints_pose, ee_pose
     
-    def plot_joints_ee_frames(self,joints_pose,ee_poses,show_joint_frames=False,show_ee_frames=True):
+    def plot_joints_ee_frames(self,joints_pose,ee_poses,show_joint_frames=True,show_ee_frames=True):
         fig = plt.figure()
         ax = fig.add_subplot(1,1,1,projection='3d')
         ax.set_xlim(-0.5,0.5)
@@ -170,6 +172,7 @@ if __name__ == "__main__":
                     'ha_l': 0.05,
                     'm_ua': 2.0,
                     'm_fa': 1.1+0.23+0.6,
+                    "shoulder_aa_offset": [17,10],
                     "ft_offsets": [0.2,0.2,0.2]}
     ub_xsens = ub(body_params,model="ubo",arm_side="right")
     ub_xsens_left = ub(body_params,model="ubo",arm_side="left")
@@ -177,14 +180,14 @@ if __name__ == "__main__":
     """
     Sanity check your UA model here
     """
-    ub_postures_to_test = [[0,0,0,0,0,90,0,0,90,90,0,0]]
+    ub_postures_to_test = [[0,0,0,0,0,72,35,0,0,90,0,0]]
 
     for ub_posture in tqdm(ub_postures_to_test):
         joints_pose, ee_pose = ub_xsens.ub_fkine(ub_posture)
         ub_xsens.plot_joints_ee_frames(joints_pose,ee_pose)
 
-        joints_pose, ee_pose = ub_xsens_left.ub_fkine(ub_posture)
-        ub_xsens_left.plot_joints_ee_frames(joints_pose,ee_pose)
+        # joints_pose, ee_pose = ub_xsens_left.ub_fkine(ub_posture)
+        # ub_xsens_left.plot_joints_ee_frames(joints_pose,ee_pose)
         plt.show(block=True)
         
         

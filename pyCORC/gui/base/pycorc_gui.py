@@ -76,7 +76,7 @@ class pycorc_gui(QtWidgets.QMainWindow):
         self.gui_last_time = self.gui_fps_timer.elapsed()
         self.gui_start_time = self.gui_fps_timer.elapsed()
         self.gui_elapsed_time = 0
-        self.gui_label = self.init_response_label(size=[500,50])
+        self.gui_label = self.init_response_label(size=[200,50])
 
         self.plt_items = []
 
