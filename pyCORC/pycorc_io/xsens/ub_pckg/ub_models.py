@@ -45,13 +45,13 @@ def xsens_ub_12dof(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float,
         L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_fe'))
         L.append(rbt.RevoluteMDH(d=-fa_l,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_ps'))
         L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi/2,name='wrist_fe'))
-        L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi/2,name='wrist_dev'))
+        L.append(rbt.RevoluteMDH(d=0,a=0,alpha=-np.pi/2,offset=-np.pi/2,name='wrist_dev'))
 
         xsens = rbt.DHRobot(L)
 
         #Add hand transformation (tool) to match XSENS model wrist offset
         xsens.base=SE3(SO3.Rz(np.pi/2))
-        xsens.tool=SE3(SO3.Ry(0))*SE3(SO3.Rx(0))*SE3([0,ha_l,0]) # for intrinsic rotation (rotation about local axis), always use post multiply
+        xsens.tool= SE3([0,-ha_l,0]) * SE3(SO3.Rx(np.pi))#*SE3(SO3.Rx(0)) # for intrinsic rotation (rotation about local axis), always use post multiply
     elif arm_side == "left":
         L = [] #Links list
         # ROM: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7549223/#:~:text=Normal%20range%20of%20active%20movement,for%20external%20rotation%20%5B6%5D.
@@ -66,13 +66,13 @@ def xsens_ub_12dof(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float,
         L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_fe'))
         L.append(rbt.RevoluteMDH(d=fa_l,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_ps'))
         L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi/2,name='wrist_fe'))
-        L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='wrist_dev'))
+        L.append(rbt.RevoluteMDH(d=0,a=0,alpha=-np.pi/2,offset=np.pi/2,name='wrist_dev'))
 
         xsens = rbt.DHRobot(L)
 
         # #Add hand transformation (tool) to match XSENS model wrist offset
         xsens.base=SE3(SO3.Rz(np.pi/2))
-        xsens.tool=SE3(SO3.Ry(np.pi))*SE3(SO3.Rx(0))*SE3([0,ha_l,0]) # for intrinsic rotation (rotation about local axis), always use post multiply
+        xsens.tool=SE3([0,-ha_l,0])* SE3(SO3.Rz(np.pi))#*SE3(SO3.Rx(0))* # for intrinsic rotation (rotation about local axis), always use post multiply
     return xsens
 
 
