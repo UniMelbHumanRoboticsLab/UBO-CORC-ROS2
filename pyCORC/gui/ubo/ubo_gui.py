@@ -95,6 +95,12 @@ class ubo_gui(pycorc_gui):
                 ees = [self.init_frame(pos=ee_pose.t,rot=ee_pose.R*0.1) for ee_pose in robot_ee]
                 self.skeleton[side]["body"] = body
                 self.skeleton[side]["ees"] = ees
+                if side == "right":
+                    forces = [0] + [self.init_line(points=np.vstack([ee_pose.t, ee_pose.t + np.matmul(ee_pose.R,np.array([0,0,0.2]))]),color="pink") for ee_pose in robot_ee[1:]]
+                else:
+                    forces = [0 for ee_pose in robot_ee]
+                self.skeleton[side]["forces"] = forces
+                
 
     def init_logger(self):
         # init response label
@@ -250,8 +256,10 @@ class ubo_gui(pycorc_gui):
                     ub_posture = self.xsens_response[side]["list"]
                     robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(ub_posture)
                     self.update_line(self.skeleton[side]["body"],points=robot_joints.t)
-                    for frame,pose in zip(self.skeleton[side]["ees"],robot_ee):
+                    for i,(frame,force,pose) in enumerate(zip(self.skeleton[side]["ees"],self.skeleton[side]["forces"],robot_ee)):
                         self.update_frame(frame,pos=pose.t,rot=pose.R*0.1)
+                        if i != 0 and side == "right":
+                            self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,np.array([0,0,0.2]))]))
 
             self.update_response_label(self.xsens_label,f"FPS:{fps}\n{txt}")
         if hasattr(self, 'logger_response'):

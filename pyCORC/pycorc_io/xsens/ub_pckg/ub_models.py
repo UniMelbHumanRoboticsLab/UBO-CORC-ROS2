@@ -151,7 +151,7 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
         fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2-np.deg2rad(shoulder_aa_offset[0]),name='shoulder_aa'))
         fa_link.append(rbt.RevoluteMDH(d=-ua_l,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_ie'))
         fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_fe'))
-        fa_link.append(rbt.RevoluteMDH(d=-fa_l/2,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_ps'))
+        fa_link.append(rbt.RevoluteMDH(d=-3*fa_l/4,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_ps'))
 
         fa_rbt = rbt.DHRobot(fa_link)
         
