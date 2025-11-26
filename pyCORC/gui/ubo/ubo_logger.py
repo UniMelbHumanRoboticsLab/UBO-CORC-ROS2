@@ -44,10 +44,16 @@ class ubo_logger(QObject):
 
         if self.init_args["corc"]["on"] and hasattr(self, 'corc_response'):
             print_text += f'CORC:{self.corc_response["corc_fps"]}\n'
-            self.corc_arr.append(np.concatenate((np.array([self.elapsed_time]),self.corc_response["raw_data"])))
+            self.corc_arr.append(self.corc_response["raw_data"]+[self.elapsed_time])
 
         if self.init_args["xsens"]["on"] and hasattr(self, 'xsens_response'):
             print_text += f'XSENS:{self.xsens_response["xsens_fps"]}\n'
+
+            timecode = self.xsens_response["timecode"]
+            right = self.xsens_response["right"]["list"]
+            left = self.xsens_response["left"]["list"]
+            # print(timecode)
+            self.xsens_arr.append([timecode]+right+left)
 
         # emit the signal
         data = {
@@ -70,6 +76,9 @@ class ubo_logger(QObject):
         # corc
         if self.init_args["corc"]["on"]:
             self.corc_arr = []
+        # xsens
+        if self.init_args["xsens"]["on"]:
+            self.xsens_arr = []
         
     """
     External Signals Callbacks
@@ -100,12 +109,21 @@ class ubo_logger(QObject):
 
         if self.init_args["corc"]["on"]:
             if hasattr(self, 'corc_response'):
-                columns = ["time","corc time",
-                           "F1x","F1y","F1z","T1x","T1y","T1z",
-                           "F2x","F2y","F2z","T2x","T2y","T2z",
-                           "F3x","F3y","F3z","T3x","T3y","T3z"]
-                total_arr = self.corc_arr #np.hstack((np.array(self.rft_arr),np.array(self.esp_arr)))
-                df = pd.DataFrame(total_arr,columns=columns)
+                joints = ['trunk_ie','trunk_aa','trunk_fe',
+                          'scapula_de','scapula_pr',
+                          'shoulder_fe','shoulder_aa','shoulder_ie',
+                          'elbow_fe','elbow_ps',
+                          'wrist_fe','wrist_dev']
+                xsens_column = ["timecode"]+[f"{joint}_{side}" for joint in joints for side in ["right","left"]]
+                corc_column = [
+                            "corc time",
+                            "F1x","F1y","F1z","T1x","T1y","T1z",
+                            "F2x","F2y","F2z","T2x","T2y","T2z",
+                            "F3x","F3y","F3z","T3x","T3y","T3z",
+                            "elapsed_time"
+                           ]
+                total_arr = np.hstack((np.array(self.xsens_arr),np.array(self.corc_arr)))
+                df = pd.DataFrame(total_arr,columns=xsens_column+corc_column)
                 self.save_file(path=f"{self.save_path}/",df=df,item=f"UBORecord{self.take_num+1}Log")
         # emit the signal
         self.time_ready.emit({

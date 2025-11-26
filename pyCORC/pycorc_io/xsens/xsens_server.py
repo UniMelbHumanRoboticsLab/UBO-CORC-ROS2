@@ -17,9 +17,9 @@ from PySide6.QtCore import QObject, QThread, Signal,QTimer,Slot,QElapsedTimer, Q
 from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget
 
 joint_keys = [
-    'trunk_fe',
-    'trunk_aa',
     'trunk_ie',
+    'trunk_aa',
+    'trunk_fe',
     'scapula_de',
     'scapula_pr',
     'shoulder_fe',

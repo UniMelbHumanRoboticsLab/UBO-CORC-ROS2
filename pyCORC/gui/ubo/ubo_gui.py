@@ -258,8 +258,9 @@ class ubo_gui(pycorc_gui):
                     self.update_line(self.skeleton[side]["body"],points=robot_joints.t)
                     for i,(frame,force,pose) in enumerate(zip(self.skeleton[side]["ees"],self.skeleton[side]["forces"],robot_ee)):
                         self.update_frame(frame,pos=pose.t,rot=pose.R*0.1)
-                        if i != 0 and side == "right":
-                            self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,np.array([0,0,0.2]))]))
+                        if i != 0 and side == "right" and hasattr(self, 'corc_response'):
+                            force_data = np.array(corc_data[1+(i-1)*6:1+(i-1)*6+6])*0.01
+                            self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,force_data[:3])]))
 
             self.update_response_label(self.xsens_label,f"FPS:{fps}\n{txt}")
         if hasattr(self, 'logger_response'):
@@ -296,7 +297,7 @@ if __name__ == "__main__":
         argv = sys.argv[1]
     except:
         argv ={
-               "init_flags":{"corc":{"on":False,
+               "init_flags":{"corc":{"on":True,
                                      "ip":"127.0.0.1",
                                      "port":2048},
                             "xsens":{"on":True,
