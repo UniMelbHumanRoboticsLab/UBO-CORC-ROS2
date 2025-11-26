@@ -114,7 +114,7 @@ class ubo_replayer(QObject):
                 "right": None,
                 "left": None
             },
-            "corc": self.corc_data[self.frame_id,:] if self.init_args["corc"]["on"] else None,
+            "corc": {"raw_data":self.corc_data[self.frame_id,:]} if self.init_args["corc"]["on"] else None,
         }
-        self.finish_save.emit()
+        self.finish_save.emit(data)
         
