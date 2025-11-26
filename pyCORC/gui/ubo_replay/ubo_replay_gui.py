@@ -6,15 +6,12 @@ np.set_printoptions(
     formatter={'float_kind': lambda x: f"{x:.4f}"}
 )
 
-from ubo_logger import ubo_logger
-
+from ubo_replayer import ubo_replayer
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from base.pycorc_gui import *
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
-from pycorc_io.corc.corc_FLNL_client import corc_FLNL_client
-from pycorc_io.xsens.xsens_server import xsens_server
 from pycorc_io.xsens.ub_pckg.ub import ub
 
 from PySide6 import QtWidgets
@@ -23,13 +20,13 @@ from PySide6.QtCore import QThread,Qt,QMetaObject,Slot
 
 
 NUM_RFT = 3
-class ubo_gui(pycorc_gui):
+class ubo_replay_gui(pycorc_gui):
     def __init__(self,init_args):
         self.init_args = init_args
         self.corc_args = self.init_args["init_flags"]["corc"]
         self.xsens_args = self.init_args["init_flags"]["xsens"]
         self.gui_args = self.init_args["init_flags"]["gui"]
-        self.log_args = self.init_args["init_flags"]["log"]
+        self.replay_args = self.init_args["init_flags"]["replay"]
 
         self.num_closed_threads = 0
         self.num_opened_threads = 0
@@ -55,9 +52,6 @@ class ubo_gui(pycorc_gui):
     def init_corc(self):
         # init response label
         self.corc_label = self.init_response_label(size=[525,100])
-        # init corc thread and worker
-        self.corc_thread = QThread()
-        self.corc_worker = corc_FLNL_client(ip=self.corc_args["ip"],port=self.corc_args["port"])
         # init corc live stream plot
         self.ubo_F_live_stream_plots = []
         self.ubo_M_live_stream_plots = []
@@ -68,9 +62,6 @@ class ubo_gui(pycorc_gui):
     def init_xsens(self):
         # init response label
         self.xsens_label = self.init_response_label(size=[300,200])
-        # init corc thread and worker
-        self.xsens_thread = QThread()
-        self.xsens_worker = xsens_server(ip=self.xsens_args["ip"],port=self.xsens_args["port"])
         # init xsens ub model
         body_params = {'torso':50/100,
                         'clav': 20/100,
@@ -95,7 +86,6 @@ class ubo_gui(pycorc_gui):
                 ees = [self.init_frame(pos=ee_pose.t,rot=ee_pose.R*0.1) for ee_pose in robot_ee]
                 self.skeleton[side]["body"] = body
                 self.skeleton[side]["ees"] = ees
-
                 if self.corc_args["on"]:
                     if side == "right":
                         forces = [0] + [self.init_line(points=np.vstack([ee_pose.t, ee_pose.t + np.matmul(ee_pose.R,np.array([0,0,0.2]))]),color="pink") for ee_pose in robot_ee[1:]]
@@ -104,23 +94,22 @@ class ubo_gui(pycorc_gui):
                 else:
                     forces = [0 for ee_pose in robot_ee]
                 self.skeleton[side]["forces"] = forces
-                
 
-    def init_logger(self):
+    def init_replayer(self):
         # init response label
-        self.logger_label = self.init_response_label(size=[250,150])
-        self.logger_thread = QThread()
-        self.logger_worker = ubo_logger(init_args = self.init_args["init_flags"],
-                                        take_num  = self.init_args["take_num"])
+        self.replayer_label = self.init_response_label(size=[250,150])
+        self.replayer_thread = QThread()
+        self.replayer_worker = ubo_replayer(init_args = self.init_args["init_flags"],
+                                            take_num  = self.init_args["take_num"])
     def init_shortcuts(self):
         # to start / stop logging at button press
-        if self.log_args["on"]:
+        if self.replay_args["on"]:
             # to start logging
             start_log = QShortcut("S", self)
-            start_log.activated.connect(self.logger_worker.start_worker)
+            start_log.activated.connect(self.replayer_worker.start_worker)
             # to stop logging and close everything
             stop_log = QShortcut("C", self)
-            stop_log.activated.connect(self.logger_worker.reset_logger)
+            stop_log.activated.connect(self.replayer_worker.stop_replayer)
             stop_log.activated.connect(self.gui_timer.stop)
             
         close = QShortcut("Q", self)
@@ -134,11 +123,11 @@ class ubo_gui(pycorc_gui):
             self.init_corc()
         if self.xsens_args["on"]:
             self.init_xsens()
-        if self.log_args["on"]:
-            self.init_logger()
-            self.logger_response = {
+        if self.replay_args["on"]:
+            self.init_replayer()
+            self.replayer_response = {
             "print_text":"Idle\n",
-            "logger_fps":0.0
+            "replayer_fps":0.0
         }
         
         """
@@ -149,75 +138,38 @@ class ubo_gui(pycorc_gui):
         Connect worker stop to stop thread at closeup
         Connect thread finished to close app
         """
-        if self.corc_args["on"]:
+        if self.replay_args["on"]:
             # move worker to thread
-            self.corc_worker.moveToThread(self.corc_thread)
-            # connect to gui
-            self.corc_worker.data_ready.connect(self.update_corc,type=Qt.ConnectionType.QueuedConnection)
-            # connect thread start to start worker   
-            self.corc_thread.started.connect(self.corc_worker.start_worker)
-            self.corc_thread.started.connect(self.add_opened_threads)
-            # connect worker stop to stop thread at closeup
-            self.corc_worker.stopped.connect(self.corc_thread.exit)
-            # connect thread finished to close app
-            self.corc_thread.finished.connect(self.close_app)
-        if self.xsens_args["on"]:
-            # move worker to thread
-            self.xsens_worker.moveToThread(self.xsens_thread)
-            # connect to gui
-            self.xsens_worker.data_ready.connect(self.update_xsens,type=Qt.ConnectionType.QueuedConnection)
-            # connect thread start to start worker   
-            self.xsens_thread.started.connect(self.xsens_worker.start_worker)
-            self.xsens_thread.started.connect(self.add_opened_threads)
-            # connect worker stop to stop thread at closeup
-            self.xsens_worker.stopped.connect(self.xsens_thread.exit)
-            # connect thread finished to close app
-            self.xsens_thread.finished.connect(self.close_app)
-        if self.log_args["on"]:
-            # move worker to thread
-            self.logger_worker.moveToThread(self.logger_thread)
-            # connect corc and xsens to logger
-            if self.corc_args["on"]:
-                self.corc_worker.data_ready.connect(self.logger_worker.update_corc,type=Qt.ConnectionType.QueuedConnection)
-            if self.xsens_args["on"]:
-                self.xsens_worker.data_ready.connect(self.logger_worker.update_xsens,type=Qt.ConnectionType.QueuedConnection)
-            # connect logger to sensor gui
-            self.logger_worker.time_ready.connect(self.update_logger,type=Qt.ConnectionType.QueuedConnection)
+            self.replayer_worker.moveToThread(self.replayer_thread)
+            # connect replayer to sensor gui
+            self.replayer_worker.time_ready.connect(self.update_replayer,type=Qt.ConnectionType.QueuedConnection)
             # connect thread start to add opened threads  
-            self.logger_thread.started.connect(self.add_opened_threads)
-            # connect logger finished saving to close workers
-            self.logger_worker.finish_save.connect(self.close_workers)
+            self.replayer_thread.started.connect(self.add_opened_threads)
+            # connect replayer finished saving to close workers
+            self.replayer_worker.finish_save.connect(self.close_workers)
             # connect worker stop to stop thread at closeup
-            self.logger_worker.stopped.connect(self.logger_thread.exit)
+            self.replayer_worker.stopped.connect(self.replayer_thread.exit)
             # connect thread finished to close app
-            self.logger_thread.finished.connect(self.close_app)
+            self.replayer_thread.finished.connect(self.close_app)
 
         """
         Start threads
         """
-        if self.corc_args["on"]:
-            self.corc_thread.start()
-            self.corc_thread.setPriority(QThread.Priority.TimeCriticalPriority)
-        if self.xsens_args["on"]:
-            self.xsens_thread.start()
-            self.xsens_thread.setPriority(QThread.Priority.TimeCriticalPriority)
-        if self.log_args["on"]:
-            self.logger_thread.start()
-            self.logger_thread.setPriority(QThread.Priority.TimeCriticalPriority)
+        if self.replay_args["on"]:
+            self.replayer_thread.start()
+            self.replayer_thread.setPriority(QThread.Priority.TimeCriticalPriority)
         
     """
     Update Sensor Variable Callbacks
     """
     @Slot(dict)
-    def update_corc(self,corc_response):
-        self.corc_response = corc_response
-    def update_xsens(self,xsens_response):
-        self.xsens_response = xsens_response
-        # print("HI")
-    @Slot(dict)
-    def update_logger(self,logger_response):
-        self.logger_response = logger_response
-
+    def update_replayer(self,replayer_response):
+        self.replayer_response = replayer_response
+        if self.replayer_response["corc"]:
+            self.corc_response = self.replayer_response["corc"]
+        if self.replayer_response["xsens"]:
+            self.xsens_response = self.replayer_response["xsens"]
+        
     """
     Update Main GUI Helper Functions and Callback
     """
@@ -230,11 +182,10 @@ class ubo_gui(pycorc_gui):
         if hasattr(self, 'corc_response'):
             # update rft info
             corc_data = self.corc_response["raw_data"]
-            fps = self.corc_response["corc_fps"]
             txt = ""
             for i in range(NUM_RFT):
                 txt += f"UBO_{i} Force(N): {corc_data[1+i*6]:8.4f} {corc_data[2+i*6]:8.4f} {corc_data[3+i*6]:8.4f} | Moment(Nm): {corc_data[4+i*6]:8.4f} {corc_data[5+i*6]:8.4f} {corc_data[6+i*6]:8.4f}\n"
-            self.update_response_label(self.corc_label,f"FPS:{fps}\nCORC Running Time:{corc_data[0]}s\n{txt}")
+            self.update_response_label(self.corc_label,f"CORC Running Time:{corc_data[0]}s\n{txt}")
             if self.gui_args["on"] and self.gui_args["force"]:
                 for i in range(NUM_RFT):
                     force_data = corc_data[1+i*6:1+i*6+6]
@@ -242,13 +193,10 @@ class ubo_gui(pycorc_gui):
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_M_live_stream_plots[i],force_data[3:],dim=3)
         if hasattr(self, 'xsens_response'):
             # update rft info
-            timecode = self.xsens_response["timecode"]
-            fps = self.xsens_response["xsens_fps"]
-            right_list = self.xsens_response["right"]["list"]
-            left_list = self.xsens_response["left"]["list"]
+            right_list = self.xsens_response["right"]
+            left_list = self.xsens_response["left"]
 
-            txt = f"XSENS Timecode:{timecode}\n"
-
+            txt = ""
             for i,key in  enumerate(['trunk_ie','trunk_aa','trunk_fe',
                         'scapula_de','scapula_pr',
                         'shoulder_fe','shoulder_aa','shoulder_ie',
@@ -257,7 +205,7 @@ class ubo_gui(pycorc_gui):
 
             if self.gui_args["on"] and self.gui_args["3d"]:
                 for side in ["right","left"]:
-                    ub_posture = self.xsens_response[side]["list"]
+                    ub_posture = self.xsens_response[side]
                     robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(ub_posture)
                     self.update_line(self.skeleton[side]["body"],points=robot_joints.t)
                     for i,(frame,force,pose) in enumerate(zip(self.skeleton[side]["ees"],self.skeleton[side]["forces"],robot_ee)):
@@ -266,11 +214,11 @@ class ubo_gui(pycorc_gui):
                             force_data = np.array(corc_data[1+(i-1)*6:1+(i-1)*6+6])*0.01
                             self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,force_data[:3])]))
 
-            self.update_response_label(self.xsens_label,f"FPS:{fps}\n{txt}")
-        if hasattr(self, 'logger_response'):
-            print_text = self.logger_response["print_text"]
-            fps = self.logger_response["logger_fps"]
-            self.update_response_label(self.logger_label,f"{print_text}FPS:{fps}")
+            self.update_response_label(self.xsens_label,f"{txt}")
+        if hasattr(self, 'replayer_response'):
+            print_text = self.replayer_response["print_text"]
+            fps = self.replayer_response["replayer_fps"]
+            self.update_response_label(self.replayer_label,f"{print_text}FPS:{fps}")
     
     """
     Cleanup
@@ -278,12 +226,8 @@ class ubo_gui(pycorc_gui):
     def close_worker_thread(self,worker):
         QMetaObject.invokeMethod(worker, "stop", Qt.ConnectionType.QueuedConnection)
     def close_workers(self):
-        if hasattr(self, 'corc_response'):
-            self.close_worker_thread(self.corc_worker)
-        if hasattr(self, 'xsens_response'):
-            self.close_worker_thread(self.xsens_worker)
-        if hasattr(self, 'logger_response'):
-            self.close_worker_thread(self.logger_worker)
+        if hasattr(self, 'replayer_response'):
+            self.close_worker_thread(self.replayer_worker)
     @Slot()
     def close_app(self):
         self.num_closed_threads += 1
@@ -301,25 +245,22 @@ if __name__ == "__main__":
         argv = sys.argv[1]
     except:
         argv ={
-               "init_flags":{"corc":{"on":True,
-                                     "ip":"127.0.0.1",
-                                     "port":2048},
-                            "xsens":{"on":True,
-                                     "ip":"0.0.0.0",
-                                     "port":9764},
-                             "gui":{"on":True,
+               "init_flags":{"corc" :{"on":True},
+                            "xsens" :{"on":True},
+                            "gui"   :{
+                                    "on":True,
                                     "freq":60,
                                     "3d":True,
-                                    "force":False},
-                             "log":{"on":True}
+                                    "force":True},
+                            "replay":{"on":True}
                              },
-               "take_num":0}
+               "take_num":1}
         
         argv = json.dumps(argv)
 
     init_args = json.loads(argv)
     app = QtWidgets.QApplication(sys.argv)
-    w = ubo_gui(init_args)
+    w = ubo_replay_gui(init_args)
     w.setWindowTitle("UBO-CORC")
     w.show()
 

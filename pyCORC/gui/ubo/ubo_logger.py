@@ -25,7 +25,7 @@ class ubo_logger(QObject):
         self.logger_last_time = self.logger_timer.elapsed()
         self.elapsed_time = 0
         
-        print("FMC Calib Logger Started")
+        print("UBO Logger Started")
     
     """
     Logging Callback
@@ -114,7 +114,7 @@ class ubo_logger(QObject):
                           'shoulder_fe','shoulder_aa','shoulder_ie',
                           'elbow_fe','elbow_ps',
                           'wrist_fe','wrist_dev']
-                xsens_column = ["timecode"]+[f"{joint}_{side}" for joint in joints for side in ["right","left"]]
+                xsens_column = ["timecode"]+[f"{joint}_{side}" for side in ["right","left"] for joint in joints]
                 corc_column = [
                             "corc time",
                             "F1x","F1y","F1z","T1x","T1y","T1z",
