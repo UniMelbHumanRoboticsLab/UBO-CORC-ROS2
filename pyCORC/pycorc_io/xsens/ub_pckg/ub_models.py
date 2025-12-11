@@ -114,8 +114,7 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
 
         #Add hand transformation (tool) to match rft
         clav_rbt.base=SE3(SO3.Rz(np.pi/2))
-        # clav_rbt.tool=SE3(SO3.Ry(0))*SE3(SO3.Rx(0))*SE3([0,ha_l,0]) # for intrinsic rotation (rotation about local axis), always use post multiply
-        clav_rbt.tool=SE3([ft_offsets[0],-clav/2,0])  * SE3(SO3.Ry(-np.pi/2)) * SE3(SO3.Rx(-np.pi))
+        clav_rbt.tool=SE3([ft_offsets[0],-clav/2,0]) * SE3(SO3.Ry(np.pi/2)) * SE3(SO3.Rz(np.pi/2)) 
         rbts.append(clav_rbt)
         """ 
         UA RFT

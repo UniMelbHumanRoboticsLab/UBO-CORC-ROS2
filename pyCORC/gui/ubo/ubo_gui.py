@@ -8,7 +8,6 @@ np.set_printoptions(
 
 from ubo_logger import ubo_logger
 
-
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from base.pycorc_gui import *
 
@@ -30,6 +29,43 @@ class ubo_gui(pycorc_gui):
         self.xsens_args = self.init_args["init_flags"]["xsens"]
         self.gui_args = self.init_args["init_flags"]["gui"]
         self.log_args = self.init_args["init_flags"]["log"]
+
+        if self.init_args["rig"]:
+            # uncomment to see visualization with rig
+            right_dict = {
+                'trunk_ie':0,
+                'trunk_aa':0,
+                'trunk_fe':0,
+                'scapula_de':0,
+                'scapula_pr':0,
+                'shoulder_fe':90,
+                'shoulder_aa':17,
+                'shoulder_ie':0,
+                'elbow_fe':0,
+                'elbow_ps':180,
+                'wrist_fe':0,
+                'wrist_dev':0
+            }
+            left_dict = {
+                'trunk_ie':0,
+                'trunk_aa':0,
+                'trunk_fe':0,
+                'scapula_de':0,
+                'scapula_pr':0,
+                'shoulder_fe':0,
+                'shoulder_aa':0,
+                'shoulder_ie':0,
+                'elbow_fe':0,
+                'elbow_ps':0,
+                'wrist_fe':0,
+                'wrist_dev':0
+            }
+            self.xsens_response = {
+                        "timecode":"NULL",
+                        "xsens_fps":1,
+                        "right":{"dict":right_dict,"list":list(right_dict.values())},
+                        "left":{"dict":left_dict,"list":list(left_dict.values())},
+                    }
 
         self.num_closed_threads = 0
         self.num_opened_threads = 0
@@ -313,6 +349,7 @@ if __name__ == "__main__":
                                     "force":False},
                              "log":{"on":True}
                              },
+                "rig":True,
                "take_num":0}
         
         argv = json.dumps(argv)
