@@ -83,12 +83,12 @@ class ubo_replay_gui(pycorc_gui):
                 self.skeleton[side]["ub_xsens"] = ub(body_params,model="ubo",arm_side=side)
                 robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine([0]*12)
                 body = self.init_line(points=robot_joints.t,color=color)
-                ees = [self.init_frame(pos=ee_pose.t,rot=ee_pose.R*0.1) for ee_pose in robot_ee]
+                ees = [self.init_frame(pos=ee_pose.t,rot=ee_pose.R*0.03) for ee_pose in robot_ee]
                 self.skeleton[side]["body"] = body
                 self.skeleton[side]["ees"] = ees
                 if self.corc_args["on"]:
                     if side == "right":
-                        forces = [0] + [self.init_line(points=np.vstack([ee_pose.t, ee_pose.t + np.matmul(ee_pose.R,np.array([0,0,0.2]))]),color="pink") for ee_pose in robot_ee[1:]]
+                        forces = [0] + [self.init_line(points=np.vstack([ee_pose.t, ee_pose.t + np.matmul(ee_pose.R,np.array([0,0,0.2]))]),color="white") for ee_pose in robot_ee[1:]]
                     else:
                         forces = [0 for ee_pose in robot_ee]
                 else:
@@ -209,7 +209,7 @@ class ubo_replay_gui(pycorc_gui):
                     robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(ub_posture)
                     self.update_line(self.skeleton[side]["body"],points=robot_joints.t)
                     for i,(frame,force,pose) in enumerate(zip(self.skeleton[side]["ees"],self.skeleton[side]["forces"],robot_ee)):
-                        self.update_frame(frame,pos=pose.t,rot=pose.R*0.1)
+                        self.update_frame(frame,pos=pose.t,rot=pose.R*0.03)
                         if i != 0 and side == "right" and hasattr(self, 'corc_response'):
                             force_data = np.array(corc_data[1+(i-1)*6:1+(i-1)*6+6])*0.01
                             self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,force_data[:3])]))

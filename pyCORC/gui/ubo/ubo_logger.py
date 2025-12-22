@@ -10,11 +10,13 @@ class ubo_logger(QObject):
     time_ready = Signal(dict)
     finish_save = Signal()
     stopped = Signal()
-    def __init__(self,init_args,take_num):
+    def __init__(self,init_args,session_data):
         super().__init__()
         self.init_args = init_args
-        self.take_num = take_num
-        self.save_path = "./logs/pycorc_recordings/"
+        self.take_num = session_data["take_num"]
+        self.task_id = session_data["task_id"]
+        self.subject_id = session_data["subject_id"]
+        self.save_path = f"./logs/pycorc_recordings/{self.subject_id}/{self.task_id}"
 
         # FPS Calculator
         self.logger_frame_count = 0

@@ -26,7 +26,7 @@ class ubo_replayer(QObject):
         self.elapsed_time = 0
 
         # read logged data
-        self.data = pd.read_csv(f"{self.save_path}/UBORecord{self.take_num}Log.csv")
+        self.data = pd.read_csv(f"{self.save_path}/exp1/p1/vincent/task_1/var_2/UBORecord{self.take_num}Log.csv")
         if self.init_args["corc"]["on"]:
             self.corc_data = self.data[["corc time","F1x", "F1y", "F1z", "T1x", "T1y", "T1z",
                     "F2x", "F2y", "F2z", "T2x", "T2y", "T2z",

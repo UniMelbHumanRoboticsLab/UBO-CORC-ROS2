@@ -29,8 +29,9 @@ class ubo_gui(pycorc_gui):
         self.xsens_args = self.init_args["init_flags"]["xsens"]
         self.gui_args = self.init_args["init_flags"]["gui"]
         self.log_args = self.init_args["init_flags"]["log"]
+        self.session_data = self.init_args["session_data"]
 
-        if self.init_args["rig"]:
+        if self.init_args["rig"] and self.xsens_args["on"]:
             # uncomment to see visualization with rig
             right_dict = {
                 'trunk_ie':0,
@@ -147,7 +148,7 @@ class ubo_gui(pycorc_gui):
         self.logger_label = self.init_response_label(size=[250,150])
         self.logger_thread = QThread()
         self.logger_worker = ubo_logger(init_args = self.init_args["init_flags"],
-                                        take_num  = self.init_args["take_num"])
+                                        session_data  = self.session_data)
     def init_shortcuts(self):
         # to start / stop logging at button press
         if self.log_args["on"]:
@@ -349,15 +350,20 @@ if __name__ == "__main__":
                                     "force":False},
                              "log":{"on":True}
                              },
-                "rig":True,
-               "take_num":0}
+                "rig":False,
+                "session_data":{
+                    "take_num":1,
+                    "subject_id":"exp1/p1/marlena",
+                    "task_id":"task_1/var_1"
+                }
+               }
         
         argv = json.dumps(argv)
 
     init_args = json.loads(argv)
     app = QtWidgets.QApplication(sys.argv)
     w = ubo_gui(init_args)
-    w.setWindowTitle("UBO-CORC")
+    w.setWindowTitle(f"UBO-CORC-{init_args['session_data']['subject_id']}/{init_args['session_data']['task_id']}/take_{init_args['session_data']['take_num']+1}")
     w.show()
 
     import psutil
