@@ -7,3 +7,4 @@ ws_plotjuggler/
 .vscode/settings.json
 plotjuggler_layout.xml
 *.pyc
+robotics-toolbox-python/

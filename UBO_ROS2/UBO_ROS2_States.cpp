@@ -29,14 +29,14 @@ void UBO_ROS2_State::during(void) {
 void UBO_ROS2_State::exit(void) 
 {
     //Actual state exit
-    exitCode();
+    exitCode(); 
     if(stateLogger.isInitialised())
         stateLogger.endLog();
 }
 
 /**
  * \brief UBO calibration
- *
+ * 
  */
 void UBOCalibState::entryCode(void) {
     calibDone = false;

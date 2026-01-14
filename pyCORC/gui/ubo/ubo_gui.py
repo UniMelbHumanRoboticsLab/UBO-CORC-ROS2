@@ -1,27 +1,28 @@
+print("Importing Paths")
 import os, sys,json
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 import numpy as np
 np.set_printoptions(
     precision=4,
     linewidth=np.inf,   
     formatter={'float_kind': lambda x: f"{x:.4f}"}
 )
-
+print("Importing Logger")
 from ubo_logger import ubo_logger
-
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from base.pycorc_gui import *
-
-sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
+print("Importing GUI")
+from base.pycorc_gui import pycorc_gui
+print("Importing IOs")
 from pycorc_io.corc.corc_FLNL_client import corc_FLNL_client
 from pycorc_io.xsens.xsens_server import xsens_server
 from pycorc_io.xsens.ub_pckg.ub import ub
-
+print("Importing PySide6")
 from PySide6 import QtWidgets
 from PySide6.QtGui import QShortcut
 from PySide6.QtCore import QThread,Qt,QMetaObject,Slot
 
-
 NUM_RFT = 3
+rft_key = ["clav","ua","fa"]
 class ubo_gui(pycorc_gui):
     def __init__(self,init_args):
         self.init_args = init_args
@@ -30,6 +31,23 @@ class ubo_gui(pycorc_gui):
         self.gui_args = self.init_args["init_flags"]["gui"]
         self.log_args = self.init_args["init_flags"]["log"]
         self.session_data = self.init_args["session_data"]
+            
+        json_path = os.path.join(os.path.dirname(__file__), '../../..',"logs/pycorc_recordings/exp1/p1/JQ/body_param.json")
+        with open(json_path, 'r') as file:
+            body_params = json.load(file)
+            print(body_params)
+            self.body_params_rbt = {'torso': body_params["torso"]/1000,
+                            'clav': body_params["clav"]/1000,
+                            'ua_l': body_params["ua_l"]/1000,
+                            'fa_l': body_params["fa_l"]/1000,
+                            'ha_l': body_params["ha_l"]/1000,
+                            'm_ua': 2.0,
+                            'm_fa': 1.1+0.23+0.6,
+                            "shoulder_aa_offset": np.array(body_params["shoulder_aa_offset"]),
+                            "ft_offsets": body_params["ft_offsets"]}
+            self.ft_grav = body_params["ft_grav"]
+            print(self.body_params_rbt)
+
 
         if self.init_args["rig"] and self.xsens_args["on"]:
             # uncomment to see visualization with rig
@@ -39,11 +57,11 @@ class ubo_gui(pycorc_gui):
                 'trunk_fe':0,
                 'scapula_de':0,
                 'scapula_pr':0,
-                'shoulder_fe':90,
-                'shoulder_aa':17,
+                'shoulder_fe':0,
+                'shoulder_aa':0,
                 'shoulder_ie':0,
                 'elbow_fe':0,
-                'elbow_ps':180,
+                'elbow_ps':0,
                 'wrist_fe':0,
                 'wrist_dev':0
             }
@@ -91,7 +109,7 @@ class ubo_gui(pycorc_gui):
         print(f"Threads Opened:{self.num_opened_threads}")
     def init_corc(self):
         # init response label
-        self.corc_label = self.init_response_label(size=[525,100])
+        self.corc_label = self.init_response_label(size=[525,200])
         # init corc thread and worker
         self.corc_thread = QThread()
         self.corc_worker = corc_FLNL_client(ip=self.corc_args["ip"],port=self.corc_args["port"])
@@ -109,15 +127,6 @@ class ubo_gui(pycorc_gui):
         self.xsens_thread = QThread()
         self.xsens_worker = xsens_server(ip=self.xsens_args["ip"],port=self.xsens_args["port"])
         # init xsens ub model
-        body_params = {'torso':50/100,
-                        'clav': 20/100,
-                        'ua_l': 34/100,
-                        'fa_l': 28/100,
-                        'ha_l': 0.05,
-                        'm_ua': 2.0,
-                        'm_fa': 1.1+0.23+0.6,
-                        "shoulder_aa_offset": [ 17,10],
-                        "ft_offsets": [0.05,0.05,0.05]}
         
         self.skeleton = {
             "right":{},
@@ -126,7 +135,7 @@ class ubo_gui(pycorc_gui):
         # init xsens skeleton for 3d gui
         if self.gui_args["on"] and self.gui_args["3d"]:
             for side,color in zip(["right","left"],["purple", "orange"]):
-                self.skeleton[side]["ub_xsens"] = ub(body_params,model="ubo",arm_side=side)
+                self.skeleton[side]["ub_xsens"] = ub(self.body_params_rbt,model="ubo",arm_side=side)
                 robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine([0]*12)
                 body = self.init_line(points=robot_joints.t,color=color)
                 ees = [self.init_frame(pos=ee_pose.t,rot=ee_pose.R*0.1) for ee_pose in robot_ee]
@@ -158,7 +167,7 @@ class ubo_gui(pycorc_gui):
             # to stop logging and close everything
             stop_log = QShortcut("C", self)
             stop_log.activated.connect(self.logger_worker.reset_logger)
-            stop_log.activated.connect(self.gui_timer.stop)
+            # stop_log.activated.connect(self.gui_timer.stop)
             
         close = QShortcut("Q", self)
         close.activated.connect(self.gui_timer.stop)
@@ -222,8 +231,6 @@ class ubo_gui(pycorc_gui):
             self.logger_worker.time_ready.connect(self.update_logger,type=Qt.ConnectionType.QueuedConnection)
             # connect thread start to add opened threads  
             self.logger_thread.started.connect(self.add_opened_threads)
-            # connect logger finished saving to close workers
-            self.logger_worker.finish_save.connect(self.close_workers)
             # connect worker stop to stop thread at closeup
             self.logger_worker.stopped.connect(self.logger_thread.exit)
             # connect thread finished to close app
@@ -269,14 +276,32 @@ class ubo_gui(pycorc_gui):
             corc_data = self.corc_response["raw_data"]
             fps = self.corc_response["corc_fps"]
             txt = ""
+
+            # get the orientation of the sensors if exist:
+            if hasattr(self, 'xsens_response'):
+                ub_posture = self.xsens_response["right"]["list"]
+                robot_joints, robot_ee = self.skeleton["right"]["ub_xsens"].ub_fkine(ub_posture)
+            else:
+                robot_ee = None
+
             for i in range(NUM_RFT):
-                txt += f"UBO_{i} Force(N): {corc_data[1+i*6]:8.4f} {corc_data[2+i*6]:8.4f} {corc_data[3+i*6]:8.4f} | Moment(Nm): {corc_data[4+i*6]:8.4f} {corc_data[5+i*6]:8.4f} {corc_data[6+i*6]:8.4f}\n"
-            self.update_response_label(self.corc_label,f"FPS:{fps}\nCORC Running Time:{corc_data[0]}s\n{txt}")
-            if self.gui_args["on"] and self.gui_args["force"]:
-                for i in range(NUM_RFT):
-                    force_data = corc_data[1+i*6:1+i*6+6]
+                offsets = [x * self.ft_grav[rft_key[i]] for x in [0,-1,0]]
+                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(offsets+[0,0,0])
+
+                # if orientation is known, weight compensate
+                if robot_ee is not None:
+                    pose = robot_ee[i + 1]
+                    weight_comp = [x * self.ft_grav[rft_key[i]] for x in [0,0,-1]]
+                    force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
+
+                txt += f"UBO_{i} Force(N): {force_data[0]:8.4f} {force_data[1]:8.4f} {force_data[2]:8.4f} | Moment(Nm): {force_data[3]:8.4f} {force_data[4]:8.4f} {force_data[5]:8.4f}\n"
+                txt += f"Force Mag{np.linalg.norm(force_data[:3]):8.4f} N | Moment Mag:{np.linalg.norm(force_data[3:]):8.4f} Nm\n"
+
+                if self.gui_args["on"] and self.gui_args["force"]:
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_F_live_stream_plots[i],force_data,dim=3)
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_M_live_stream_plots[i],force_data[3:],dim=3)
+            self.update_response_label(self.corc_label,f"FPS:{fps}\nCORC Running Time:{corc_data[0]}s\n{txt}")
+
         if hasattr(self, 'xsens_response'):
             # update rft info
             timecode = self.xsens_response["timecode"]
@@ -300,8 +325,14 @@ class ubo_gui(pycorc_gui):
                     for i,(frame,force,pose) in enumerate(zip(self.skeleton[side]["ees"],self.skeleton[side]["forces"],robot_ee)):
                         self.update_frame(frame,pos=pose.t,rot=pose.R*0.1)
                         if i != 0 and side == "right" and hasattr(self, 'corc_response'):
-                            force_data = np.array(corc_data[1+(i-1)*6:1+(i-1)*6+6])*0.01
-                            self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,force_data[:3])]))
+                            j = i - 1
+                            offsets = [x * self.ft_grav[rft_key[j]] for x in [0,-1,0]]
+                            force_data = np.array(corc_data[1+j*6:1+j*6+6])+np.array(offsets+[0,0,0])
+
+                            weight_comp = [x * self.ft_grav[rft_key[j]] for x in [0,0,-1]]
+                            force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
+
+                            self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,force_data[:3])*0.02]))
 
             self.update_response_label(self.xsens_label,f"FPS:{fps}\n{txt}")
         if hasattr(self, 'logger_response'):
@@ -341,19 +372,19 @@ if __name__ == "__main__":
                "init_flags":{"corc":{"on":True,
                                      "ip":"127.0.0.1",
                                      "port":2048},
-                            "xsens":{"on":True,
+                            "xsens":{"on":False,
                                      "ip":"0.0.0.0",
                                      "port":9764},
                              "gui":{"on":True,
                                     "freq":60,
                                     "3d":True,
-                                    "force":False},
+                                    "force":True},
                              "log":{"on":True}
                              },
-                "rig":False,
+                "rig":True,
                 "session_data":{
-                    "take_num":1,
-                    "subject_id":"exp1/p1/marlena",
+                    "take_num":0,
+                    "subject_id":"exp1/p1/JQ",
                     "task_id":"task_1/var_1"
                 }
                }
@@ -366,7 +397,7 @@ if __name__ == "__main__":
     w.setWindowTitle(f"UBO-CORC-{init_args['session_data']['subject_id']}/{init_args['session_data']['task_id']}/take_{init_args['session_data']['take_num']+1}")
     w.show()
 
-    import psutil
+    # import psutil
     # p = psutil.Process(os.getpid())
     # p.nice(psutil.REALTIME_PRIORITY_CLASS)  # or REALTIME_PRIORITY_CLASS
     sys.exit(app.exec())

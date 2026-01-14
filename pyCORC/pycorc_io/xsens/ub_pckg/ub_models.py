@@ -76,7 +76,7 @@ def xsens_ub_12dof(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float,
     return xsens
 
 
-def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua: float = 0, m_fa: float = 0,ft_offsets: list = [0,0,0], shoulder_aa_offset:float = 16, arm_side:str = "right") -> rbt.Robot:
+def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua: float = 0, m_fa: float = 0,ft_offsets: dict = {}, shoulder_aa_offset:np.array = np.array([0,0]), arm_side:str = "right") -> rbt.Robot:
     """
     ubo_robot xsens_upper_body_model + the 3 RFT sensors
     torso: torso length
@@ -104,6 +104,7 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
         Clavicle RFT
         """
         clav_link = [] #Links list
+        clav_offsets = np.array(ft_offsets["clav"])/1000
         # ROM: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7549223/#:~:text=Normal%20range%20of%20active%20movement,for%20external%20rotation%20%5B6%5D.
         clav_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=0,offset=np.pi/2,name='trunk_ie'))
         clav_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi/2,name='trunk_aa'))
@@ -114,12 +115,13 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
 
         #Add hand transformation (tool) to match rft
         clav_rbt.base=SE3(SO3.Rz(np.pi/2))
-        clav_rbt.tool=SE3([ft_offsets[0],-clav/2,0]) * SE3(SO3.Ry(np.pi/2)) * SE3(SO3.Rz(np.pi/2)) 
+        clav_rbt.tool=SE3([clav_offsets[0],-clav_offsets[1],0]) * SE3(SO3.Ry(np.pi/2)) * SE3(SO3.Rz(np.pi/2)) 
         rbts.append(clav_rbt)
         """ 
         UA RFT
         """
         ua_link = [] #Links list
+        ua_offsets = np.array(ft_offsets["ua"])/1000
         # ROM: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7549223/#:~:text=Normal%20range%20of%20active%20movement,for%20external%20rotation%20%5B6%5D.
         ua_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=0,offset=np.pi/2,name='trunk_ie'))
         ua_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi/2,name='trunk_aa'))
@@ -128,18 +130,19 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
         ua_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='scapula_pr'))
         ua_link.append(rbt.RevoluteMDH(d=clav,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_fe'))
         ua_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2-np.deg2rad(shoulder_aa_offset[0]),name='shoulder_aa'))
-        ua_link.append(rbt.RevoluteMDH(d=-ua_l/2,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_ie'))
+        ua_link.append(rbt.RevoluteMDH(d=-ua_offsets[1],a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_ie'))
         ua_rbt = rbt.DHRobot(ua_link)
 
         #Add hand transformation (tool) to match rft
         ua_rbt.base=SE3(SO3.Rz(np.pi/2))
-        ua_rbt.tool=SE3([0,-ft_offsets[1],0]) * SE3(SO3.Rx(np.pi/2))  # for intrinsic rotation (rotation about local axis), always use post multiply
+        ua_rbt.tool=SE3([0,-ua_offsets[0],0]) * SE3(SO3.Rx(np.pi/2))  # for intrinsic rotation (rotation about local axis), always use post multiply
         rbts.append(ua_rbt)
 
         """ 
         FA RFT
         """
         fa_link = [] #Links list
+        fa_offsets = np.array(ft_offsets["fa"])/1000
         # ROM: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7549223/#:~:text=Normal%20range%20of%20active%20movement,for%20external%20rotation%20%5B6%5D.
         fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=0,offset=np.pi/2,name='trunk_ie'))
         fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi/2,name='trunk_aa'))
@@ -150,13 +153,13 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
         fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2-np.deg2rad(shoulder_aa_offset[0]),name='shoulder_aa'))
         fa_link.append(rbt.RevoluteMDH(d=-ua_l,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_ie'))
         fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_fe'))
-        fa_link.append(rbt.RevoluteMDH(d=-3*fa_l/4,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_ps'))
+        fa_link.append(rbt.RevoluteMDH(d=-fa_offsets[1],a=0,alpha=np.pi/2,offset=np.pi,name='elbow_ps'))
 
         fa_rbt = rbt.DHRobot(fa_link)
         
         #Add hand transformation (tool) to match rft
         fa_rbt.base=SE3(SO3.Rz(np.pi/2))
-        fa_rbt.tool= SE3([-ft_offsets[2],0,0]) * SE3(SO3.Ry(-np.pi/2)) * SE3(SO3.Rz(-np.pi/2)) #* SE3(SO3.Rx(0)) # for intrinsic rotation (rotation about local axis), always use post multiply
+        fa_rbt.tool= SE3([-fa_offsets[0],0,0]) * SE3(SO3.Ry(-np.pi/2)) * SE3(SO3.Rz(-np.pi/2)) #* SE3(SO3.Rx(0)) # for intrinsic rotation (rotation about local axis), always use post multiply
 
         rbts.append(fa_rbt)
 
