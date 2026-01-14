@@ -36,7 +36,7 @@ for var in range(var_num):
                                 "force":False},
                         "log":{"on":True}
                         },
-            "rig":False,
+            "rig":True,
             "session_data":{
                 "take_num":0,
                 "subject_id":f"{exp_id}/{patient_id}",
