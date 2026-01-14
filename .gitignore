@@ -7,3 +7,6 @@ ws_plotjuggler/
 .vscode/settings.json
 plotjuggler_layout.xml
 *.pyc
+*.png
+*.docx
+*.mp4
