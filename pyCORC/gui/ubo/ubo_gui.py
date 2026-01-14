@@ -373,7 +373,7 @@ if __name__ == "__main__":
     init_args = json.loads(argv)
     app = QtWidgets.QApplication(sys.argv)
     w = ubo_gui(init_args)
-    w.setWindowTitle(f"UBO-CORC-{init_args['session_data']['subject_id']}/{init_args['session_data']['task_id']}/take_{init_args['session_data']['take_num']+1}")
+    w.setWindowTitle(f"UBO-CORC-{init_args['session_data']['subject_id']}/{init_args['session_data']['task_id']}")
     w.show()
 
     # import psutil

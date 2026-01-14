@@ -1,8 +1,5 @@
 # driver.py
 import subprocess, sys, os,json
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-import random
 
 SCRIPT = os.path.join(os.path.dirname(__file__), "ubo_gui.py")
 
@@ -10,6 +7,8 @@ var_num = 2
 task_id = "task_1"
 exp_id = "exp1"
 patient_id = "p1/JQ"
+
+print(f"Starting {exp_id} - {patient_id} - {task_id}")
 
 for var in range(var_num):
     print("========================================================\n")
@@ -27,7 +26,7 @@ for var in range(var_num):
         "init_flags":{"corc":{"on":True,
                                 "ip":"127.0.0.1",
                                 "port":2048},
-                        "xsens":{"on":False,
+                        "xsens":{"on":True,
                                 "ip":"0.0.0.0",
                                 "port":9764},
                         "gui":{"on":True,
@@ -55,7 +54,7 @@ for var in range(var_num):
         print(f"{task_id}/var_{var+1} exited with {rc}, stopping.")
         break
     import time
-    time.sleep(3)
+    time.sleep(1)
     print(f"\n=== {task_id}/var_{var+1} ended ===\n")
 
     if p == "N":

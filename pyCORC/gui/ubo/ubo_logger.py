@@ -34,7 +34,7 @@ class ubo_logger(QObject):
     """
     def log_current_data(self):
         # update FPS
-        print_text = "Logging\n"
+        print_text = f"Logging Take {self.take_num+1}\n"
         self.logger_frame_count += 1
         self.logger_cur_time = self.logger_timer.elapsed()
         self.elapsed_time = (self.logger_cur_time-self.logger_start_time)/1000
