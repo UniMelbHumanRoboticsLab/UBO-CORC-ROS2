@@ -16,6 +16,7 @@ print("Importing IOs")
 from pycorc_io.corc.corc_FLNL_client import corc_FLNL_client
 from pycorc_io.xsens.xsens_server import xsens_server
 from pycorc_io.xsens.ub_pckg.ub import ub
+from pycorc_io.package_utils.unpack_json import get_subject_params
 print("Importing PySide6")
 from PySide6 import QtWidgets
 from PySide6.QtGui import QShortcut
@@ -47,20 +48,8 @@ class ubo_gui(pycorc_gui):
                             'wrist_dev':0
                         }
             
-        json_path = os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}/body_param.json')
-        with open(json_path, 'r') as file:
-            body_params = json.load(file)
-            self.body_params_rbt = {'torso': body_params["torso"]/1000,
-                            'clav': body_params["clav"]/1000,
-                            'ua_l': body_params["ua_l"]/1000,
-                            'fa_l': body_params["fa_l"]/1000,
-                            'ha_l': body_params["ha_l"]/1000,
-                            'm_ua': 2.0,
-                            'm_fa': 1.1+0.23+0.6,
-                            "shoulder_aa_offset": np.array(body_params["shoulder_aa_offset"]),
-                            "ft_offsets": body_params["ft_offsets"]}
-            self.ft_grav = body_params["ft_grav"]
-            print(self.body_params_rbt)
+        self.body_params_rbt,self.ft_grav = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}'))
+        print(self.body_params_rbt,self.ft_grav)
 
         self.num_closed_threads = 0
         self.num_opened_threads = 0
