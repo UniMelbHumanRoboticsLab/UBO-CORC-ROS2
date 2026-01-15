@@ -36,7 +36,7 @@ class ubo_replayer(QObject):
         # read logged data
         self.data = pd.read_csv(f"{self.subject_path}/UBORecord{self.take_num}Log.csv")
         if self.init_args["corc"]["on"]:
-            self.corc_data = self.data[["corc time","F1x", "F1y", "F1z", "T1x", "T1y", "T1z",
+            self.corc_data = self.data[["elapsed_time","F1x", "F1y", "F1z", "T1x", "T1y", "T1z",
                     "F2x", "F2y", "F2z", "T2x", "T2y", "T2z",
                     "F3x", "F3y", "F3z", "T3x", "T3y", "T3z"]].values
             
@@ -74,7 +74,7 @@ class ubo_replayer(QObject):
         self.replayer_frame_count += 1
         self.replayer_cur_time = self.replayer_timer.elapsed()
         self.elapsed_time = (self.replayer_cur_time-self.replayer_start_time)/1000
-        print_text += f"Time Elapsed:{self.elapsed_time}\n"
+        print_text += f"Logger Time Elapsed:{self.elapsed_time}\n"
 
         if self.replayer_cur_time-self.replayer_last_time >= 1000:
             self.replayer_fps = self.replayer_frame_count * 1000 / (self.replayer_cur_time-self.replayer_last_time)
@@ -91,7 +91,7 @@ class ubo_replayer(QObject):
     @Slot()
     def start_take(self):
         self.read_logged_data()
-        self.frame_id = 0
+        
         self.total_frames = len(self.data) if self.init_args["corc"]["on"]==1 else 1000
 
         self.poll_timer = QTimer()
@@ -112,7 +112,7 @@ class ubo_replayer(QObject):
     def stop_take(self):
         if hasattr(self, 'poll_timer'):
             self.poll_timer.stop()
-            self.frame_id = 0
+            
             # emit the signal
             data = self.return_data(f"Stop Take {self.take_num}\n")
             self.time_ready.emit(data)
@@ -123,6 +123,7 @@ class ubo_replayer(QObject):
                 try:
                     self.take_num += 1
                     self.data = pd.read_csv(f"{self.subject_path}/UBORecord{self.take_num}Log.csv")
+                    self.frame_id = 0
                 except Exception as e:
                     print(f"Take {self.take_num} DNE")
                     self.take_num = 1
