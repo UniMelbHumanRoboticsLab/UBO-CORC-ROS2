@@ -223,7 +223,10 @@ class ubo_replay_gui(pycorc_gui):
                 right_list = self.xsens_response["right"]
                 left_list = self.xsens_response["left"]
 
-                txt = ""
+                f = ""
+                p = "left"
+                g = "right"
+                txt = f"{f:15}: {p:8} {g:8}\n"
 
                 for i,key in  enumerate(['trunk_ie','trunk_aa','trunk_fe',
                             'scapula_de','scapula_pr',
