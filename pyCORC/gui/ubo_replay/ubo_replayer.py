@@ -10,11 +10,14 @@ class ubo_replayer(QObject):
     time_ready = Signal(dict)
     finish_save = Signal()
     stopped = Signal()
-    def __init__(self,init_args,take_num):
+    def __init__(self,init_args,session_data):
         super().__init__()
         self.init_args = init_args
-        self.take_num = take_num
-        self.save_path = "./logs/pycorc_recordings/"
+        self.take_num = session_data["take_num"]
+        self.task_id = session_data["task_id"]
+        self.subject_id = session_data["subject_id"]
+        self.subject_path = os.path.join(os.path.dirname(__file__), '../../..',f"logs/pycorc_recordings/{self.subject_id}/{self.task_id}")
+        self.read_logged_data()
 
         # FPS Calculator
         self.replayer_frame_count = 0
@@ -25,8 +28,13 @@ class ubo_replayer(QObject):
         self.replayer_last_time = self.replayer_timer.elapsed()
         self.elapsed_time = 0
 
+        self.frame_id = 0
+        self.total_frames = 1000
+
+        print("UBO Replayer Started")
+    def read_logged_data(self):
         # read logged data
-        self.data = pd.read_csv(f"{self.save_path}/exp1/p1/vincent/task_1/var_2/UBORecord{self.take_num}Log.csv")
+        self.data = pd.read_csv(f"{self.subject_path}/UBORecord{self.take_num}Log.csv")
         if self.init_args["corc"]["on"]:
             self.corc_data = self.data[["corc time","F1x", "F1y", "F1z", "T1x", "T1y", "T1z",
                     "F2x", "F2y", "F2z", "T2x", "T2y", "T2z",
@@ -40,37 +48,13 @@ class ubo_replayer(QObject):
                         'wrist_fe','wrist_dev']
             self.right_xsens_data = self.data[[f"{joint}_right" for joint in joints]].values  # last 7 columns are CORC data
             self.left_xsens_data = self.data[[f"{joint}_left" for joint in joints]].values  # last 7 columns are CORC data
-        
-        self.frame_id = 0
-        self.total_frames = len(self.data) if self.init_args["corc"]["on"]==1 else 1000
-        print("UBO Replayer Started")
-    
     """
-    Logging Callback
+    Replayer Callback
     """
-    def replay_current_data(self):
-        self.frame_id += 1
-        if self.frame_id >= self.total_frames:
-            self.frame_id = 0
-            self.replayer_start_time = self.replayer_timer.elapsed()
-
-        # update FPS
-        print_text = f"Logging\n"
-        self.replayer_frame_count += 1
-        self.replayer_cur_time = self.replayer_timer.elapsed()
-        self.elapsed_time = (self.replayer_cur_time-self.replayer_start_time)/1000
-        print_text += f"Time Elapsed:{self.elapsed_time}\n"
-
-
-        if self.replayer_cur_time-self.replayer_last_time >= 1000:
-            self.replayer_fps = self.replayer_frame_count * 1000 / (self.replayer_cur_time-self.replayer_last_time)
-            self.replayer_last_time = self.replayer_cur_time
-            self.replayer_frame_count = 0
-
-        # emit the signal
+    def return_data(self,print_text):
         data = {
             "print_text":print_text,
-            "replayer_fps":self.replayer_fps,
+            "replayer_fps":0,
             "frame_id": self.frame_id,
             "xsens": {
                 "right": self.right_xsens_data[self.frame_id,:],
@@ -78,13 +62,38 @@ class ubo_replayer(QObject):
             } if self.init_args["xsens"]["on"] else None ,
             "corc": {"raw_data":self.corc_data[self.frame_id,:]} if self.init_args["corc"]["on"] else None,
         }
+        return data
+    def replay_current_data(self):
+        self.frame_id += 1
+        if self.frame_id >= self.total_frames:
+            self.frame_id = 0
+            self.replayer_start_time = self.replayer_timer.elapsed()
+
+        # update FPS
+        print_text = f"Replaying {self.take_num}\n"
+        self.replayer_frame_count += 1
+        self.replayer_cur_time = self.replayer_timer.elapsed()
+        self.elapsed_time = (self.replayer_cur_time-self.replayer_start_time)/1000
+        print_text += f"Time Elapsed:{self.elapsed_time}\n"
+
+        if self.replayer_cur_time-self.replayer_last_time >= 1000:
+            self.replayer_fps = self.replayer_frame_count * 1000 / (self.replayer_cur_time-self.replayer_last_time)
+            self.replayer_last_time = self.replayer_cur_time
+            self.replayer_frame_count = 0
+
+        # emit the signal
+        data = self.return_data(print_text)
         self.time_ready.emit(data)
     
     """
     Initialization Callback
     """
     @Slot()
-    def start_worker(self):
+    def start_take(self):
+        self.read_logged_data()
+        self.frame_id = 0
+        self.total_frames = len(self.data) if self.init_args["corc"]["on"]==1 else 1000
+
         self.poll_timer = QTimer()
         self.poll_timer.setTimerType(Qt.PreciseTimer)
         self.poll_timer.timeout.connect(self.replay_current_data)
@@ -100,21 +109,27 @@ class ubo_replayer(QObject):
             self.poll_timer.stop()
         self.stopped.emit()
     @Slot()
-    def stop_replayer(self):
-        # debugpy.debug_this_thread()
+    def stop_take(self):
         if hasattr(self, 'poll_timer'):
             self.poll_timer.stop()
-        
-        # emit the signal
-        data = {
-            "print_text":"Finish Replay",
-            "replayer_fps":self.replayer_fps,
-            "frame_id": self.frame_id,
-            "xsens": {
-                "right": None,
-                "left": None
-            },
-            "corc": {"raw_data":self.corc_data[self.frame_id,:]} if self.init_args["corc"]["on"] else None,
-        }
-        self.finish_save.emit(data)
+            self.frame_id = 0
+            # emit the signal
+            data = self.return_data(f"Stop Take {self.take_num}\n")
+            self.time_ready.emit(data)
+    @Slot()
+    def next_take(self):
+        if hasattr(self, 'poll_timer'):
+            if not self.poll_timer.isActive():
+                try:
+                    self.take_num += 1
+                    self.data = pd.read_csv(f"{self.subject_path}/UBORecord{self.take_num}Log.csv")
+                except Exception as e:
+                    print(f"Take {self.take_num} DNE")
+                    self.take_num = 1
+                finally:
+                    data = self.return_data(f"Starting Take {self.take_num}\n")
+                    self.time_ready.emit(data)
+            else:
+                print("Stop current replay first")
+
         

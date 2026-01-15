@@ -47,10 +47,9 @@ class ubo_gui(pycorc_gui):
                             'wrist_dev':0
                         }
             
-        json_path = os.path.join(os.path.dirname(__file__), '../../..',"logs/pycorc_recordings/exp1/p1/JQ/body_param.json")
+        json_path = os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}/body_param.json')
         with open(json_path, 'r') as file:
             body_params = json.load(file)
-            print(body_params)
             self.body_params_rbt = {'torso': body_params["torso"]/1000,
                             'clav': body_params["clav"]/1000,
                             'ua_l': body_params["ua_l"]/1000,
@@ -114,7 +113,7 @@ class ubo_gui(pycorc_gui):
             self.skeleton[side]["ub_xsens"] = ub(self.body_params_rbt,model="ubo",arm_side=side)
             robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine([0]*12)
             
-            if self.gui_args["on"]:
+            if self.gui_args["on"] and self.gui_args["3d"]:
                 if self.xsens_args["on"] or self.init_args["rig"]:
                     body = self.init_line(points=robot_joints.t,color=color)
                     ees = [self.init_frame(pos=ee_pose.t,rot=ee_pose.R*0.1) for ee_pose in robot_ee]
@@ -336,7 +335,6 @@ class ubo_gui(pycorc_gui):
         self.num_closed_threads += 1
         if self.num_closed_threads == self.num_opened_threads:
             print("Shutting down app...")
-            # clear all plots
             for plt in self.plt_items:
                 plt.clear()
                 plt.deleteLater()

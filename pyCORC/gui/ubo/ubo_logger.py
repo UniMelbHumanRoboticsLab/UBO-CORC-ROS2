@@ -111,12 +111,12 @@ class ubo_logger(QObject):
 
         if self.init_args["corc"]["on"]:
             if hasattr(self, 'corc_response'):
-                # joints = ['trunk_ie','trunk_aa','trunk_fe',
-                #           'scapula_de','scapula_pr',
-                #           'shoulder_fe','shoulder_aa','shoulder_ie',
-                #           'elbow_fe','elbow_ps',
-                #           'wrist_fe','wrist_dev']
-                # xsens_column = ["timecode"]+[f"{joint}_{side}" for side in ["right","left"] for joint in joints]
+                joints = ['trunk_ie','trunk_aa','trunk_fe',
+                          'scapula_de','scapula_pr',
+                          'shoulder_fe','shoulder_aa','shoulder_ie',
+                          'elbow_fe','elbow_ps',
+                          'wrist_fe','wrist_dev']
+                xsens_column = ["timecode"]+[f"{joint}_{side}" for side in ["right","left"] for joint in joints]
                 corc_column = [
                             "corc time",
                             "F1x","F1y","F1z","T1x","T1y","T1z",
@@ -124,11 +124,11 @@ class ubo_logger(QObject):
                             "F3x","F3y","F3z","T3x","T3y","T3z",
                             "elapsed_time"
                            ]
-                # total_arr = np.hstack((np.array(self.xsens_arr),np.array(self.corc_arr)))
-                # df = pd.DataFrame(total_arr,columns=xsens_column+corc_column)
+                total_arr = np.hstack((np.array(self.xsens_arr),np.array(self.corc_arr)))
+                df = pd.DataFrame(total_arr,columns=xsens_column+corc_column)
                 
-                total_arr = np.array(self.corc_arr)
-                df = pd.DataFrame(total_arr,columns=corc_column)
+                # total_arr = np.array(self.corc_arr)
+                # df = pd.DataFrame(total_arr,columns=corc_column)
                 
                 self.save_file(path=f"{self.save_path}/",df=df,item=f"UBORecord{self.take_num+1}Log")
         # emit the signal

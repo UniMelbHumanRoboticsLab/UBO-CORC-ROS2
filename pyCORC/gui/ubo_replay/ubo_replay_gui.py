@@ -1,25 +1,27 @@
+print("Importing Paths")
 import os, sys,json
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 import numpy as np
 np.set_printoptions(
     precision=4,
     linewidth=np.inf,   
     formatter={'float_kind': lambda x: f"{x:.4f}"}
 )
-
+print("Importing Replayer")
 from ubo_replayer import ubo_replayer
-
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from base.pycorc_gui import *
-
-sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
+print("Importing GUI")
+from base.pycorc_gui import pycorc_gui
+print("Importing IOs")
 from pycorc_io.xsens.ub_pckg.ub import ub
-
+print("Importing PySide6")
 from PySide6 import QtWidgets
 from PySide6.QtGui import QShortcut
 from PySide6.QtCore import QThread,Qt,QMetaObject,Slot
 
 
 NUM_RFT = 3
+rft_key = ["clav","ua","fa"]
 class ubo_replay_gui(pycorc_gui):
     def __init__(self,init_args):
         self.init_args = init_args
@@ -27,15 +29,45 @@ class ubo_replay_gui(pycorc_gui):
         self.xsens_args = self.init_args["init_flags"]["xsens"]
         self.gui_args = self.init_args["init_flags"]["gui"]
         self.replay_args = self.init_args["init_flags"]["replay"]
+        self.session_data = self.init_args["session_data"]
 
         self.num_closed_threads = 0
         self.num_opened_threads = 0
 
+        self.place_holder_angles ={
+                            'trunk_ie':0,
+                            'trunk_aa':0,
+                            'trunk_fe':0,
+                            'scapula_de':0,
+                            'scapula_pr':0,
+                            'shoulder_fe':0,
+                            'shoulder_aa':0,
+                            'shoulder_ie':0,
+                            'elbow_fe':0,
+                            'elbow_ps':0,
+                            'wrist_fe':0,
+                            'wrist_dev':0
+                        }
+        
         super().__init__(freq=self.gui_args["freq"],gui_3d=self.gui_args["3d"])
 
         if self.gui_args["force"]:
             self.ubo_wrenches_live_stream = self.init_live_stream(num_columns=2)
-            
+        
+        json_path = os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}/body_param.json')
+        with open(json_path, 'r') as file:
+            body_params = json.load(file)
+            self.body_params_rbt = {'torso': body_params["torso"]/1000,
+                            'clav': body_params["clav"]/1000,
+                            'ua_l': body_params["ua_l"]/1000,
+                            'fa_l': body_params["fa_l"]/1000,
+                            'ha_l': body_params["ha_l"]/1000,
+                            'm_ua': 2.0,
+                            'm_fa': 1.1+0.23+0.6,
+                            "shoulder_aa_offset": np.array(body_params["shoulder_aa_offset"]),
+                            "ft_offsets": body_params["ft_offsets"]}
+            self.ft_grav = body_params["ft_grav"]
+            print(self.body_params_rbt,self.ft_grav)
         """
         Initilization
         """
@@ -62,26 +94,16 @@ class ubo_replay_gui(pycorc_gui):
     def init_xsens(self):
         # init response label
         self.xsens_label = self.init_response_label(size=[300,200])
-        # init xsens ub model
-        body_params = {'torso':50/100,
-                        'clav': 20/100,
-                        'ua_l': 34/100,
-                        'fa_l': 28/100,
-                        'ha_l': 0.05,
-                        'm_ua': 2.0,
-                        'm_fa': 1.1+0.23+0.6,
-                        "shoulder_aa_offset": [ 17,10],
-                        "ft_offsets": [0.05,0.05,0.05]}
-        
+    def init_skeleton(self):
         self.skeleton = {
             "right":{},
             "left":{}
         }
-        # init xsens skeleton for 3d gui
-        if self.gui_args["on"] and self.gui_args["3d"]:
-            for side,color in zip(["right","left"],["purple", "orange"]):
-                self.skeleton[side]["ub_xsens"] = ub(body_params,model="ubo",arm_side=side)
-                robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine([0]*12)
+        # init xsens skeleton for future use
+        for side,color in zip(["right","left"],["purple", "orange"]):
+            self.skeleton[side]["ub_xsens"] = ub(self.body_params_rbt,model="ubo",arm_side=side)
+            robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine([0]*12)
+            if self.gui_args["on"] and self.gui_args["3d"]:
                 body = self.init_line(points=robot_joints.t,color=color)
                 ees = [self.init_frame(pos=ee_pose.t,rot=ee_pose.R*0.03) for ee_pose in robot_ee]
                 self.skeleton[side]["body"] = body
@@ -94,23 +116,24 @@ class ubo_replay_gui(pycorc_gui):
                 else:
                     forces = [0 for ee_pose in robot_ee]
                 self.skeleton[side]["forces"] = forces
-
     def init_replayer(self):
         # init response label
         self.replayer_label = self.init_response_label(size=[250,150])
         self.replayer_thread = QThread()
         self.replayer_worker = ubo_replayer(init_args = self.init_args["init_flags"],
-                                            take_num  = self.init_args["take_num"])
+                                                session_data  = self.session_data)
     def init_shortcuts(self):
         # to start / stop logging at button press
         if self.replay_args["on"]:
             # to start logging
             start_log = QShortcut("S", self)
-            start_log.activated.connect(self.replayer_worker.start_worker)
-            # to stop logging and close everything
+            start_log.activated.connect(self.replayer_worker.start_take)
+            # to stop logging
             stop_log = QShortcut("C", self)
-            stop_log.activated.connect(self.replayer_worker.stop_replayer)
-            stop_log.activated.connect(self.gui_timer.stop)
+            stop_log.activated.connect(self.replayer_worker.stop_take)
+            # to go to next take logging
+            next_log = QShortcut("N", self)
+            next_log.activated.connect(self.replayer_worker.next_take)
             
         close = QShortcut("Q", self)
         close.activated.connect(self.gui_timer.stop)
@@ -119,6 +142,7 @@ class ubo_replay_gui(pycorc_gui):
         """
         Init IO thread and worker
         """
+        self.init_skeleton()
         if self.corc_args["on"]:
             self.init_corc()
         if self.xsens_args["on"]:
@@ -175,46 +199,70 @@ class ubo_replay_gui(pycorc_gui):
     """
     def update_gui(self):
         super().update_gui()
-        if self.gui_args["on"]:
-            # update live stream time buffer
-            if self.gui_args["force"]:
-                self.update_live_stream_buffer(live_stream=self.ubo_wrenches_live_stream)
+        # update live stream time buffer
+        if self.gui_args["force"]:
+            self.update_live_stream_buffer(live_stream=self.ubo_wrenches_live_stream)
         if hasattr(self, 'corc_response'):
             # update rft info
             corc_data = self.corc_response["raw_data"]
             txt = ""
+            # get the orientation of the sensors if exist:
+            if hasattr(self, 'xsens_response'):
+                robot_joints, robot_ee = self.skeleton["right"]["ub_xsens"].ub_fkine(self.xsens_response["right"])
+            else:
+                robot_joints, robot_ee = self.skeleton["right"]["ub_xsens"].ub_fkine(list(self.place_holder_angles.values()))
+
             for i in range(NUM_RFT):
-                txt += f"UBO_{i} Force(N): {corc_data[1+i*6]:8.4f} {corc_data[2+i*6]:8.4f} {corc_data[3+i*6]:8.4f} | Moment(Nm): {corc_data[4+i*6]:8.4f} {corc_data[5+i*6]:8.4f} {corc_data[6+i*6]:8.4f}\n"
-            self.update_response_label(self.corc_label,f"CORC Running Time:{corc_data[0]}s\n{txt}")
-            if self.gui_args["on"] and self.gui_args["force"]:
-                for i in range(NUM_RFT):
-                    force_data = corc_data[1+i*6:1+i*6+6]
+                offsets = [x * self.ft_grav[rft_key[i]] for x in [0,-1,0]]
+                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(offsets+[0,0,0])
+                
+                # weight compensate with skeleton config
+                pose = robot_ee[i + 1]
+                weight_comp = [x * self.ft_grav[rft_key[i]] for x in [0,0,-1]]
+                force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
+
+                txt += f"UBO_{i} Force(N): {force_data[0]:8.4f} {force_data[1]:8.4f} {force_data[2]:8.4f} | Moment(Nm): {force_data[3]:8.4f} {force_data[4]:8.4f} {force_data[5]:8.4f}\n"
+                txt += f"Force Mag{np.linalg.norm(force_data[:3]):8.4f} N | Moment Mag:{np.linalg.norm(force_data[3:]):8.4f} Nm\n"
+
+                if self.gui_args["on"] and self.gui_args["force"]:
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_F_live_stream_plots[i],force_data,dim=3)
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_M_live_stream_plots[i],force_data[3:],dim=3)
-        if hasattr(self, 'xsens_response'):
-            # update rft info
-            right_list = self.xsens_response["right"]
-            left_list = self.xsens_response["left"]
+            self.update_response_label(self.corc_label,f"CORC Running Time:{corc_data[0]}s\n{txt}")
+        if hasattr(self, 'xsens_response') or self.init_args["rig"]:
+            if hasattr(self, 'xsens_response'):
+                # update rft info
+                right_list = self.xsens_response["right"]
+                left_list = self.xsens_response["left"]
 
-            txt = ""
-            for i,key in  enumerate(['trunk_ie','trunk_aa','trunk_fe',
-                        'scapula_de','scapula_pr',
-                        'shoulder_fe','shoulder_aa','shoulder_ie',
-                        'elbow_fe','elbow_ps','wrist_fe','wrist_dev']):
-                txt += f"{key:15}: {left_list[i]:8.4f} {right_list[i]:8.4f}\n"
+                txt = ""
+
+                for i,key in  enumerate(['trunk_ie','trunk_aa','trunk_fe',
+                            'scapula_de','scapula_pr',
+                            'shoulder_fe','shoulder_aa','shoulder_ie',
+                            'elbow_fe','elbow_ps','wrist_fe','wrist_dev']):
+                    txt += f"{key:15}: {left_list[i]:8.4f} {right_list[i]:8.4f}\n"
+                self.update_response_label(self.xsens_label,f"{txt}")
 
             if self.gui_args["on"] and self.gui_args["3d"]:
                 for side in ["right","left"]:
-                    ub_posture = self.xsens_response[side]
-                    robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(ub_posture)
+                    if hasattr(self, 'xsens_response'):
+                        robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(self.xsens_response[side])
+                    else:
+                        robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(list(self.place_holder_angles.values()))
+                        
                     self.update_line(self.skeleton[side]["body"],points=robot_joints.t)
+                    
                     for i,(frame,force,pose) in enumerate(zip(self.skeleton[side]["ees"],self.skeleton[side]["forces"],robot_ee)):
-                        self.update_frame(frame,pos=pose.t,rot=pose.R*0.03)
+                        self.update_frame(frame,pos=pose.t,rot=pose.R*0.1)
                         if i != 0 and side == "right" and hasattr(self, 'corc_response'):
-                            force_data = np.array(corc_data[1+(i-1)*6:1+(i-1)*6+6])*0.01
-                            self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,force_data[:3])]))
+                            j = i - 1
+                            offsets = [x * self.ft_grav[rft_key[j]] for x in [0,-1,0]]
+                            force_data = np.array(corc_data[1+j*6:1+j*6+6])+np.array(offsets+[0,0,0])
 
-            self.update_response_label(self.xsens_label,f"{txt}")
+                            weight_comp = [x * self.ft_grav[rft_key[j]] for x in [0,0,-1]]
+                            force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
+
+                            self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,force_data[:3])*0.02]))
         if hasattr(self, 'replayer_response'):
             print_text = self.replayer_response["print_text"]
             fps = self.replayer_response["replayer_fps"]
@@ -251,17 +299,23 @@ if __name__ == "__main__":
                                     "on":True,
                                     "freq":60,
                                     "3d":True,
-                                    "force":True},
+                                    "force":False},
                             "replay":{"on":True}
                              },
-               "take_num":1}
+                "rig":False,
+                "session_data":{
+                    "take_num":1,
+                    "subject_id":"exp1/p1/vincent",
+                    "task_id":"task_1/var_2"
+                }
+               }
         
         argv = json.dumps(argv)
 
     init_args = json.loads(argv)
     app = QtWidgets.QApplication(sys.argv)
     w = ubo_replay_gui(init_args)
-    w.setWindowTitle("UBO-CORC")
+    w.setWindowTitle(f"UBO-CORC-{init_args['session_data']['subject_id']}/{init_args['session_data']['task_id']}")
     w.show()
 
     import psutil
