@@ -16,7 +16,7 @@ class ubo_logger(QObject):
         self.take_num = session_data["take_num"]
         self.task_id = session_data["task_id"]
         self.subject_id = session_data["subject_id"]
-        self.save_path = os.path.join(os.path.dirname(__file__), '../../..',f"logs/pycorc_recordings/{self.subject_id}/{self.task_id}")
+        self.save_path = os.path.join(os.path.dirname(__file__), '../../..',f"logs/pycorc_recordings/{self.subject_id}/{self.task_id}/raw")
 
         # FPS Calculator
         self.logger_frame_count = 0
