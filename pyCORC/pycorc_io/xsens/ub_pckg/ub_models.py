@@ -47,7 +47,7 @@ def xsens_ub_12dof(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float,
         L.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi/2,name='wrist_fe'))
         L.append(rbt.RevoluteMDH(d=0,a=0,alpha=-np.pi/2,offset=-np.pi/2,name='wrist_dev'))
 
-        xsens = rbt.DHRobot(L)
+        xsens = rbt.DHRobot(L,name="ub")
 
         #Add hand transformation (tool) to match XSENS model wrist offset
         xsens.base=SE3(SO3.Rz(np.pi/2))
@@ -111,7 +111,7 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
         clav_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=0,name='trunk_fe'))
         clav_link.append(rbt.RevoluteMDH(d=0,a=torso,alpha=np.pi/2,offset=np.pi/2,name='scapula_de'))
         clav_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2,name='scapula_pr'))
-        clav_rbt = rbt.DHRobot(clav_link)
+        clav_rbt = rbt.DHRobot(clav_link,name="clav")
 
         #Add hand transformation (tool) to match rft
         clav_rbt.base=SE3(SO3.Rz(np.pi/2))
@@ -131,7 +131,7 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
         ua_link.append(rbt.RevoluteMDH(d=clav,a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_fe'))
         ua_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=-np.pi/2-np.deg2rad(shoulder_aa_offset[0]),name='shoulder_aa'))
         ua_link.append(rbt.RevoluteMDH(d=-ua_offsets[1],a=0,alpha=np.pi/2,offset=-np.pi/2,name='shoulder_ie'))
-        ua_rbt = rbt.DHRobot(ua_link)
+        ua_rbt = rbt.DHRobot(ua_link,name="ua")
 
         #Add hand transformation (tool) to match rft
         ua_rbt.base=SE3(SO3.Rz(np.pi/2))
@@ -155,7 +155,7 @@ def ubo_robot(torso:float,clav:float,ua_l: float, fa_l: float, ha_l: float, m_ua
         fa_link.append(rbt.RevoluteMDH(d=0,a=0,alpha=np.pi/2,offset=np.pi,name='elbow_fe'))
         fa_link.append(rbt.RevoluteMDH(d=-fa_offsets[1],a=0,alpha=np.pi/2,offset=np.pi,name='elbow_ps'))
 
-        fa_rbt = rbt.DHRobot(fa_link)
+        fa_rbt = rbt.DHRobot(fa_link,name="fa")
         
         #Add hand transformation (tool) to match rft
         fa_rbt.base=SE3(SO3.Rz(np.pi/2))

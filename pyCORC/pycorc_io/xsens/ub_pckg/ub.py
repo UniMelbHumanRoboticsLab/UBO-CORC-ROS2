@@ -22,8 +22,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__)))
 from ub_models import *
 
 class ub():
+    """Init Functions"""
     def __init__(self, body_params={'torso':0.5,'clav':0.2,'ua_l': 0.3, 'fa_l': 0.25, 'ha_l': 0.1, 'm_ua': 2.0, 'm_fa':1.1+0.23+0.6,"shoulder_aa_offset":[16],"ft_offsets": [0.1,0.1,0.1]},model='xsens',arm_side="right"):
-
         self.model = model
         if self.model == 'ubo':
             self.ub_model = ubo_robot(
@@ -62,8 +62,53 @@ class ub():
 
         #Default gravity vector (can be changed)
         self.ub_model[0].gravity=[0,0,-9.81]
-        
+    def ArmMassFromBodyMass(self, body_mass: float):
+        '''Calculate arm mass from overall body mass based on anthropomorphic rules
+        from Drillis et al., Body Segment Parameters, 1964. Table 7'''
+        UA_percent_m = 0.053
+        FA_percent_m = 0.036
+        hand_percent_m = 0.013
+        self.ub_model[0][2].m = UA_percent_m*body_mass
+        self.ub_model[0][4].m = (FA_percent_m+hand_percent_m)*body_mass
+        self.Marm=0
+        for l in self.ub_model[0].links:
+            self.Marm+=l.m
+
+    def SetGravity(self,g_vector: np.array =[0,0,-9.81]):
+        '''Define (set) gravitational vector of the model'''
+        self.ub_model[0].gravity=g_vector
     """
+    Plotting
+    """
+    def plot_joints_ees_frame(self,joints_pose,ees_pose,show_joint_frames=True,show_ee_frames=True):
+        fig = plt.figure()
+        ax = fig.add_subplot(1,1,1,projection='3d')
+        ax.set_xlim(-0.5,0.5)
+        ax.set_ylim(-0.5,0.5)
+        ax.set_zlim(-0.5,0.5)
+        # ax.set_box_aspect([1, 1, 1])
+
+        # plot skeleton
+        x = np.array([joints_pose[0].t[0],joints_pose[4].t[0],joints_pose[6].t[0],joints_pose[8].t[0],joints_pose[10].t[0]])
+        y = np.array([joints_pose[0].t[1],joints_pose[4].t[1],joints_pose[6].t[1],joints_pose[8].t[1],joints_pose[10].t[1]])
+        z = np.array([joints_pose[0].t[2],joints_pose[4].t[2],joints_pose[6].t[2],joints_pose[8].t[2],joints_pose[10].t[2]])
+        ax.plot(x,y,z,marker='o', linestyle='-', color='k')
+
+        import matplotlib.colors as mcolors
+        colors = list(mcolors.TABLEAU_COLORS.values())+list(mcolors.TABLEAU_COLORS.values())
+        if show_joint_frames:
+            for i,robot_joint_pose in enumerate(joints_pose):
+                if i == 0 :
+                    off = np.array([0.0,0.0,0.0])
+                else:   
+                    off = np.array([0.02,-0.02,-0.02])
+                offset = SE3.Rt(robot_joint_pose.R, robot_joint_pose.t+robot_joint_pose.R@off)
+                offset.plot(frame=f"{i}", length=0.05, ax=ax,color=colors[i],flo=(0.005,0.005,0.005))
+        if show_ee_frames:
+            for i, (ee_pose, frame_name) in enumerate(zip(ees_pose,self.ee_names)):
+                ee_pose.plot(frame=frame_name, length=0.05, ax=ax,color='k',flo=(0.01,0.01,0.01))
+    """
+    Inverse Kinematics
     Estimate new joint angles (task parameters) from new task points
     - TODO: develop an IK that can recreate that without giving the explicit joint angles 
     """
@@ -101,67 +146,63 @@ class ub():
             
         qq_new = pd.DataFrame(qq_new, columns=list(joints_traj.columns))
         return qq_new
-        
-    def ArmMassFromBodyMass(self, body_mass: float):
-        '''Calculate arm mass from overall body mass based on anthropomorphic rules
-        from Drillis et al., Body Segment Parameters, 1964. Table 7'''
-        UA_percent_m = 0.053
-        FA_percent_m = 0.036
-        hand_percent_m = 0.013
-        self.ub_model[0][2].m = UA_percent_m*body_mass
-        self.ub_model[0][4].m = (FA_percent_m+hand_percent_m)*body_mass
-        self.Marm=0
-        for l in self.ub_model[0].links:
-            self.Marm+=l.m
+    """
+    Forward Kinematics
+    """
+    def fkine(self,joints_config:list):
+        # supports both single joints config or joints trajectory
+        ees_pose = []
+        joints_config = np.array(joints_config)
+        if joints_config.ndim == 1:
+            joints_config = joints_config[np.newaxis, :]
 
-    def SetGravity(self,g_vector: np.array =[0,0,-9.81]):
-        '''Define (set) gravitational vector of the model'''
-        self.ub_model[0].gravity=g_vector
-
-    def ub_fkine(self,ub_posture):
-        joints_pose = self.ub_model[0].fkine_all(np.deg2rad(np.array(ub_posture))) # this has all the frames of the robot joints
-
-        ee_pose = []
         for i, robot in enumerate(self.ub_model): 
-            posture = ub_posture[:(robot.n)] 
-            ee_pose.append(robot.fkine(np.deg2rad(np.array(posture))))
+            posture = joints_config[:,:(robot.n)] 
+            ees_pose.append(robot.fkine(np.deg2rad(posture)))
+        return ees_pose
+    def fkine_all(self,joints_config:list):
+        joints_pose = self.ub_model[0].fkine_all(np.deg2rad(np.array(joints_config))) # this has all the frames of the robot joints
+        return joints_pose
+    def ub_fkine(self,joints_config:list):
+        # for single joints configuration atm
+        joints_pose,ees_pose = self.fkine_all(joints_config),self.fkine(joints_config)
+        return joints_pose,ees_pose
+    """
+    Inverse Dynamics
+    """
+    def get_joints_torque(self,joints_config:np.ndarray,ees_wrench:np.ndarray):
+        taus = []
+        total_tau = np.zeros(self.ub_model[-1].n)
+        # self.ub_model[0].jacobe()
+        for i, robot in enumerate(self.ub_model[1:]): 
+            ee_wrench = ees_wrench[i*6:i*6+6]
+            posture = joints_config[:(robot.n)]
+            J = robot.jacobe(np.deg2rad(np.array(posture)))
+            tau = J.T @ ee_wrench
 
-            # print(robot)
-            # if i == robot.n-1:
-            #     block = True
-            # else:
-            #     block = False
-            # robot.plot(np.deg2rad(np.array(posture)),block=block,fig=plt.figure(len(plt.get_fignums())+1))
-
-        return joints_pose, ee_pose
+            tau_padded = np.zeros(self.ub_model[-1].n)
+            tau_padded[:robot.n] = tau
+            total_tau += tau_padded
+            taus.append(tau)
+        return taus, total_tau
     
-    def plot_joints_ee_frames(self,joints_pose,ee_poses,show_joint_frames=True,show_ee_frames=True):
-        fig = plt.figure()
-        ax = fig.add_subplot(1,1,1,projection='3d')
-        ax.set_xlim(-0.5,0.5)
-        ax.set_ylim(-0.5,0.5)
-        ax.set_zlim(-0.5,0.5)
-        # ax.set_box_aspect([1, 1, 1])
+    def get_joints_torques_traj(self,joints_config_traj:np.ndarray,ees_wrench_traj:np.ndarray):
+        num_samples = joints_config_traj.shape[0]
+        taus_dict = {"total":
+                     {
+                         "raw": np.empty((num_samples,self.ub_model[-1].n))
+                     }}
+        for robot in self.ub_model[1:]: 
+            taus_dict[f'{robot.name}'] = {
+                "raw": np.empty((num_samples,robot.n))
+            }
 
-        # plot skeleton
-        x = np.array([joints_pose[0].t[0],joints_pose[4].t[0],joints_pose[6].t[0],joints_pose[8].t[0],joints_pose[10].t[0]])
-        y = np.array([joints_pose[0].t[1],joints_pose[4].t[1],joints_pose[6].t[1],joints_pose[8].t[1],joints_pose[10].t[1]])
-        z = np.array([joints_pose[0].t[2],joints_pose[4].t[2],joints_pose[6].t[2],joints_pose[8].t[2],joints_pose[10].t[2]])
-        ax.plot(x,y,z,marker='o', linestyle='-', color='k')
-
-        import matplotlib.colors as mcolors
-        colors = list(mcolors.TABLEAU_COLORS.values())+list(mcolors.TABLEAU_COLORS.values())
-        if show_joint_frames:
-            for i,robot_joint_pose in enumerate(joints_pose):
-                if i == 0 :
-                    off = np.array([0.0,0.0,0.0])
-                else:   
-                    off = np.array([0.02,-0.02,-0.02])
-                offset = SE3.Rt(robot_joint_pose.R, robot_joint_pose.t+robot_joint_pose.R@off)
-                offset.plot(frame=f"{i}", length=0.05, ax=ax,color=colors[i],flo=(0.005,0.005,0.005))
-        if show_ee_frames:
-            for i, (ee_pose, frame_name) in enumerate(zip(ee_poses,self.ee_names)):
-                ee_pose.plot(frame=frame_name, length=0.05, ax=ax,color='k',flo=(0.01,0.01,0.01))
+        for j,(joints_config, ees_wrench) in enumerate(zip(joints_config_traj, ees_wrench_traj)):
+            taus, total_tau = self.get_joints_torque(joints_config, ees_wrench)
+            for tau, robot in zip(taus,self.ub_model[1:]):
+                taus_dict[f'{robot.name}']["raw"][j] = tau
+            taus_dict["total"]["raw"][j] = total_tau
+        return taus_dict
 
 if __name__ == "__main__":
     #Define ISB rtb arm model
@@ -173,7 +214,12 @@ if __name__ == "__main__":
                     'm_ua': 2.0,
                     'm_fa': 1.1+0.23+0.6,
                     "shoulder_aa_offset": [17,10],
-                    "ft_offsets": [0.2,0.2,0.2]}
+                    "ft_offsets": {
+                        "clav": [50.0,100.0],
+                        "ua":   [50.0,130.0],
+                        "fa":   [50.0,200.0]
+                    }
+    }
     ub_xsens = ub(body_params,model="ubo",arm_side="right")
     ub_xsens_left = ub(body_params,model="ubo",arm_side="left")
 
@@ -182,11 +228,11 @@ if __name__ == "__main__":
     """
     ub_postures_to_test = [[0,0,0,0,0,72,35,0,0,90,0,0]]
 
-    for ub_posture in tqdm(ub_postures_to_test):
-        joints_pose, ee_pose = ub_xsens.ub_fkine(ub_posture)
-        ub_xsens.plot_joints_ee_frames(joints_pose,ee_pose)
+    for joints_config in tqdm(ub_postures_to_test):
+        joints_pose, ee_pose = ub_xsens.ub_fkine(joints_config)
+        ub_xsens.plot_joints_ees_frame(joints_pose,ee_pose)
 
-        # joints_pose, ee_pose = ub_xsens_left.ub_fkine(ub_posture)
+        # joints_pose, ee_pose = ub_xsens_left.ub_fkine(joints_config)
         # ub_xsens_left.plot_joints_ee_frames(joints_pose,ee_pose)
         plt.show(block=True)
         
