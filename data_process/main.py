@@ -10,22 +10,27 @@ np.set_printoptions(
 )
 
 from plot_data import compare_multi_dim_data,plot_3d_trajectory,plot_3d_points
-from process_data import lpf,calc_fixed_diff,calc_mag,segment_sbmvmts,rescale
+from process_data import lpf,calc_fixed_diff,calc_mag,segment_sbmvmts,rescale,separate_train_test,separate_train_val
+from unpack_csv import get_raw_data
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from pyCORC.pycorc_io.xsens.ub_pckg.ub import ub
 from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
-from pyCORC.pycorc_io.package_utils.unpack_csv import get_raw_data,save_file
+
 
 #%% 
-""" init session parameters """
+""" init session parameters and perform train / test / validation spliting"""
 session_data = {
     "subject_id":"exp1/p1/vincent",
     "task_id":"task_1",
     "sbmvmt_num":4,
-    "variants":["var_2"]
+    "num_rep":4,
+    "variants":["var_1","var_2","var_3","var_4","var_5","var_6"]
 }
 subject_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["subject_id"]}')
+# separate variants for train test and save splits to csv
+case_id,train_var,test_var = separate_train_test(session_data["variants"],f'{subject_path}/{session_data["task_id"]}/train_test_split.csv')
+train_set , val_set = separate_train_val(train_var,session_data["num_rep"],f'{subject_path}/{session_data["task_id"]}/train_val_split.csv')
 
 """ init xsens skeleton model """
 body_params_rbt,ft_grav_offset = get_subject_params(subject_path)
@@ -40,7 +45,6 @@ rft_keys = ["clav","ua","fa"]
 """ get the external torque generated in that submovement """
 """ segment the submovements for each repetition """
 """ extract task parameters from each submovement """
-""" """
 full_data_dict = {}
 time_list,q_traj_list,qdot_traj_list,hand_3d_traj_list,sbmvmt_list,rep_label_list = [],[],[],[],[],[]
 fc = 10  # cut-off frequency
@@ -48,9 +52,10 @@ fs = 50
 dt = 1/fs
 for var in session_data["variants"]:
     full_data_dict[var] = {}
-    for rep in range(1,5):
+    for rep in range(1,session_data["num_rep"]+1):
         # read the csv file for the current rep
-        full_data,time_data_unscaled,corc_data_unscaled,q_traj_unscaled = get_raw_data(f'{subject_path}/{session_data["task_id"]}/{var}/raw/UBORecord{rep}Log.csv')
+        data_path = f'{subject_path}/{session_data["task_id"]}/{var}/raw/UBORecord{rep}Log.csv'
+        full_data,time_data_unscaled,corc_data_unscaled,q_traj_unscaled = get_raw_data(data_path)
         time_data_unscaled = time_data_unscaled - time_data_unscaled[0]
 
         # TODO:corc_data to compensate for gravity on RFTs
@@ -99,8 +104,8 @@ for var in session_data["variants"]:
         _,start_end_indices = segment_sbmvmts(time_data,hand_pos_traj,hand_speed,1,data_path=f'{subject_path}/{session_data["task_id"]}/{var}/processed/index/UBOStartEnd{rep}.txt',redo=False)
         time_data       = time_data[start_end_indices[0]:start_end_indices[-1]]-time_data[start_end_indices[0]]
         corc_data       = corc_data[start_end_indices[0]:start_end_indices[-1],:]
-        q_traj          = q_traj[start_end_indices[0]:start_end_indices[-1],:]
-        qdot_traj       = qdot_traj[start_end_indices[0]:start_end_indices[-1],:]
+        q_traj          = q_traj[start_end_indices[0]:start_end_indices[-1],:10]
+        qdot_traj       = qdot_traj[start_end_indices[0]:start_end_indices[-1],:10]
         hand_pos_traj   = hand_pos_traj[start_end_indices[0]:start_end_indices[-1],:]
         hand_speed      = hand_speed[start_end_indices[0]:start_end_indices[-1],:]
         for rft_key in rft_keys+["total"]:
@@ -135,16 +140,15 @@ for var in session_data["variants"]:
         q = ['trunk_ie','trunk_aa','trunk_fe',
                 'scapula_de','scapula_pr',
                 'shoulder_fe','shoulder_aa','shoulder_ie',
-                'elbow_fe','elbow_ps',
-                'wrist_fe','wrist_dev']
+                'elbow_fe','elbow_ps']
         qdot = [f"{joint}_dot" for joint in q]
-        tau_list = [f"tau_{joint}" for joint in q[:10]]
+        tau_list = [f"tau_{joint}" for joint in q]
         num_dim = len(q)+len(qdot)+len(tau_list)
         task_params_A   = np.vstack([np.eye(num_dim).flatten() for _ in range(sbmvmt_indices.shape[0])])
         task_params_b   = np.hstack([q_traj[sbmvmt_indices,:], qdot_traj[sbmvmt_indices,:],np.zeros((sbmvmt_indices.shape[0],len(tau_list)))])  # tau should have zero offset
         task_params     = np.hstack([task_params_A, task_params_b])
         tp_df = pd.DataFrame(task_params, columns=[f"A{j}" for j in range(1,num_dim*num_dim+1)] + [f"b{j}" for j in range(1,num_dim+1)])
-        save_file(path=f'{subject_path}/{session_data["task_id"]}/{var}/processed/tp/UBOTP{rep}Log.csv',df=tp_df)
+        tp_df.to_csv(f'{subject_path}/{session_data["task_id"]}/{var}/processed/tp/UBOTP{rep}Log.csv',index=True)
 
         """ Save Post Processed Data """
         # compile all data
@@ -160,7 +164,7 @@ for var in session_data["variants"]:
         full_processed_data = np.hstack([time_data_norm[:,np.newaxis],indices_traj,q_traj,qdot_traj,taus_traj["total"]["filtered-rescaled"]])
         df_column = ["norm_time","index"]+q+qdot+tau_list
         full_df = pd.DataFrame(full_processed_data,columns=df_column)
-        save_file(path=f'{subject_path}/{session_data["task_id"]}/{var}/processed/UBORecord{rep}Log.csv',df=full_df)
+        full_df.to_csv(f'{subject_path}/{session_data["task_id"]}/{var}/processed/UBORecord{rep}Log.csv',index=True)
 
         # for plotting
         time_list.append(time_data_norm)
@@ -174,7 +178,7 @@ fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_lis
 # compare_multi_dim_data(
 #         time_list,
 #         q_traj_list,
-#         12,
+#         10,
 #         rep_label_list,
 #         'Time(s)',
 #         "q",
@@ -208,7 +212,7 @@ for i, rft_key in enumerate(rft_keys+["total"]):
     time_list,force_list,moment_list,wrench_list,taus_list,rep_label_list = [],[],[],[],[],[]
 
     for var in session_data["variants"]:
-        for rep in range(1,5):
+        for rep in range(1,session_data["num_rep"]+1):
             time_data = full_data_dict[var][rep]["time"]
             corc_data = full_data_dict[var][rep]["corc"]
             tau_data = full_data_dict[var][rep]["taus"][rft_key]["filtered-rescaled"]
@@ -222,25 +226,25 @@ for i, rft_key in enumerate(rft_keys+["total"]):
             taus_list.append(tau_data)
             rep_label_list.append(f'{var}-Rep{rep}')
 
-    # if rft_key != "total":
-    #     compare_multi_dim_data(
-    #         time_list,
-    #         wrench_list,
-    #         6,
-    #         rep_label_list,
-    #         'Time(s)',
-    #         f"{rft_key}",
-    #         sharex=True,
-    #         semilogx=False,
-    #         fig_label=f"{rft_key}")
-    # compare_multi_dim_data(
-    #         time_list,
-    #         taus_list,
-    #         taus_list[0].shape[1],
-    #         rep_label_list,
-    #         'Time(s)',
-    #         f"tau_{rft_key}",
-    #         sharex=True,
-    #         semilogx=False,
-    #         fig_label=f"tau_{rft_key}")
+    if rft_key != "total":
+        compare_multi_dim_data(
+            time_list,
+            wrench_list,
+            6,
+            rep_label_list,
+            'Time(s)',
+            f"{rft_key}",
+            sharex=True,
+            semilogx=False,
+            fig_label=f"{rft_key}")
+    compare_multi_dim_data(
+            time_list,
+            taus_list,
+            taus_list[0].shape[1],
+            rep_label_list,
+            'Time(s)',
+            f"tau_{rft_key}",
+            sharex=True,
+            semilogx=False,
+            fig_label=f"tau_{rft_key}")
 plt.show(block=True)

@@ -35,8 +35,7 @@ def compare_multi_dim_data(x_list:list,data_list:list,dim:int,labels:list,xtype:
         dim_labels = [f"{datatype}_{i}" for i in ['trunk_ie','trunk_aa','trunk_fe',
                         'scapula_de','scapula_pr',
                         'shoulder_fe','shoulder_aa','shoulder_ie',
-                        'elbow_fe','elbow_ps',
-                        'wrist_fe','wrist_dev']]
+                        'elbow_fe','elbow_ps']]
 
     n_colors = len(x_list)
     colors = get_n_colors(n_colors)
