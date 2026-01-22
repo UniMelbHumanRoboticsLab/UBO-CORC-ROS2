@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import sys,os
 
+
+
 # Set NumPy print options to show decimal format instead of exponential
 np.set_printoptions(
     precision=3,
@@ -20,6 +22,7 @@ np.set_printoptions(
 from tqdm import tqdm
 sys.path.append(os.path.join(os.path.dirname(__file__)))
 from ub_models import *
+sys.path.append(os.path.join(os.path.dirname(__file__),".."))
 
 class ub():
     """Init Functions"""
@@ -206,31 +209,62 @@ class ub():
 
 if __name__ == "__main__":
     #Define ISB rtb arm model
-    body_params = {'torso':0.5,
-                    'clav': 20/100,
-                    'ua_l': 34/100,
-                    'fa_l': 28/100,
-                    'ha_l': 0.05,
+    body_params = {
+        "body_height": 1770.0,
+        "shoulder_height": 1520,
+        "shoulder_width": 390.0,
+        "elbow_span": 800.0,
+        "wrist_span": 1320.0,
+        "arm_span": 1710.0,
+        "torso": 520.0,
+        "clav": 200.0,
+        "ua_l": 260.0,
+        "fa_l": 250.0,
+        "ha_l": 70.0,
+        "ft_offsets": {
+            "clav": [0.0,100.0],
+            "ua":   [0.0,130.0],
+            "fa":   [0.0,200.0]
+        },
+        "ft_grav": {
+            "clav": 0,
+            "ua":   0,
+            "fa":   0
+        },
+        "shoulder_aa_offset": [0,0]
+        }
+    body_params_rbt = {'torso': body_params["torso"]/1000,
+                    'clav': body_params["clav"]/1000,
+                    'ua_l': body_params["ua_l"]/1000,
+                    'fa_l': body_params["fa_l"]/1000,
+                    'ha_l': body_params["ha_l"]/1000,
                     'm_ua': 2.0,
                     'm_fa': 1.1+0.23+0.6,
-                    "shoulder_aa_offset": [17,10],
-                    "ft_offsets": {
-                        "clav": [50.0,100.0],
-                        "ua":   [50.0,130.0],
-                        "fa":   [50.0,200.0]
-                    }
-    }
-    ub_xsens = ub(body_params,model="ubo",arm_side="right")
-    ub_xsens_left = ub(body_params,model="ubo",arm_side="left")
+                    "shoulder_aa_offset": np.array(body_params["shoulder_aa_offset"]),
+                    "ft_offsets": body_params["ft_offsets"]}
+    ub_xsens = ub(body_params_rbt,model="ubo",arm_side="right")
+    ub_xsens_left = ub(body_params_rbt,model="ubo",arm_side="left")
 
     """
     Sanity check your UA model here
     """
-    ub_postures_to_test = [[0,0,0,0,0,72,35,0,0,90,0,0]]
+    ub_postures_to_test = [[0,0,0,0,0,0,0,0,90,0,0,0]]
 
     for joints_config in tqdm(ub_postures_to_test):
         joints_pose, ee_pose = ub_xsens.ub_fkine(joints_config)
         ub_xsens.plot_joints_ees_frame(joints_pose,ee_pose)
+
+        wrenches = np.array([[0,0,-10,0,0,0,
+                    10,0,0,0,0,0,
+                    0,0,-0,3,2.5,0]])
+        tau_dict = ub_xsens.get_joints_torques_traj(np.array([joints_config]),wrenches)
+        print()
+        for i,(key,tau) in enumerate(zip(tau_dict.keys(),tau_dict.values())):
+            if key != "total":
+                i = i-1
+                print(f"{key} Wrenches\t:{wrenches[0,i*6:i*6+6]}")
+                print(f"{key} joint torques (Nm)\t:{tau['raw']}")
+                print()
 
         # joints_pose, ee_pose = ub_xsens_left.ub_fkine(joints_config)
         # ub_xsens_left.plot_joints_ee_frames(joints_pose,ee_pose)
