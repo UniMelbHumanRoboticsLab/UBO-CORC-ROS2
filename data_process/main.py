@@ -148,7 +148,7 @@ for var in session_data["variants"]:
         task_params_b   = np.hstack([q_traj[sbmvmt_indices,:], qdot_traj[sbmvmt_indices,:],np.zeros((sbmvmt_indices.shape[0],len(tau_list)))])  # tau should have zero offset
         task_params     = np.hstack([task_params_A, task_params_b])
         tp_df = pd.DataFrame(task_params, columns=[f"A{j}" for j in range(1,num_dim*num_dim+1)] + [f"b{j}" for j in range(1,num_dim+1)])
-        tp_df.to_csv(f'{subject_path}/{session_data["task_id"]}/{var}/processed/tp/UBOTP{rep}Log.csv',index=True)
+        tp_df.to_csv(f'{subject_path}/{session_data["task_id"]}/{var}/processed/tp/UBOTP{rep}Log.csv',index=False)
 
         """ Save Post Processed Data """
         # compile all data
@@ -164,7 +164,7 @@ for var in session_data["variants"]:
         full_processed_data = np.hstack([time_data_norm[:,np.newaxis],indices_traj,q_traj,qdot_traj,taus_traj["total"]["filtered-rescaled"]])
         df_column = ["norm_time","index"]+q+qdot+tau_list
         full_df = pd.DataFrame(full_processed_data,columns=df_column)
-        full_df.to_csv(f'{subject_path}/{session_data["task_id"]}/{var}/processed/UBORecord{rep}Log.csv',index=True)
+        full_df.to_csv(f'{subject_path}/{session_data["task_id"]}/{var}/processed/UBORecord{rep}Log.csv',index=False)
 
         # for plotting
         time_list.append(time_data_norm)
@@ -174,27 +174,30 @@ for var in session_data["variants"]:
         sbmvmt_list.append(indices_traj)  
         rep_label_list.append(f'{var}-Rep{rep}')
 
-fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list)
-# compare_multi_dim_data(
-#         time_list,
-#         q_traj_list,
-#         10,
-#         rep_label_list,
-#         'Time(s)',
-#         "q",
-#         sharex=True,
-#         semilogx=False,
-#         fig_label=f"joint angle")
-# compare_multi_dim_data(
-#         time_list,
-#         qdot_traj_list,
-#         12,
-#         rep_label_list,
-#         'Time(s)',
-#         "qdot",
-#         sharex=True,
-#         semilogx=False,
-#         fig_label=f"joint angle velocity")
+# fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list)
+qfig,qaxs = compare_multi_dim_data(
+        time_list,
+        q_traj_list,
+        10,
+        rep_label_list,
+        'Time(s)',
+        "q",
+        sharex=True,
+        semilogx=False,
+        fig_label=f"joint angle",
+        show_stats=True)
+
+qdot_fig,qdot_axs = compare_multi_dim_data(
+        time_list,
+        qdot_traj_list,
+        10,
+        rep_label_list,
+        'Time(s)',
+        "qdot",
+        sharex=True,
+        semilogx=False,
+        fig_label=f"joint angle velocity",
+        show_stats=True)
 # compare_multi_dim_data(
 #         time_list,
 #         sbmvmt_list,
@@ -246,5 +249,6 @@ for i, rft_key in enumerate(rft_keys+["total"]):
             f"tau_{rft_key}",
             sharex=True,
             semilogx=False,
-            fig_label=f"tau_{rft_key}")
+            fig_label=f"tau_{rft_key}",
+            show_stats=True)
 plt.show(block=True)

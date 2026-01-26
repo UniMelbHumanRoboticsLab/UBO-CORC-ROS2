@@ -8,11 +8,14 @@ def get_n_colors(n_colors:int):
     return colors
 
 """compare multi dim data function individually from multiple sources"""
-def compare_multi_dim_data(x_list:list,data_list:list,dim:int,labels:list,xtype:str,datatype:str,sharex:bool=True,semilogx:bool=False,fig_label:str="Take1"):
+def compare_multi_dim_data(x_list:list,data_list:list,dim:int,labels:list,xtype:str,datatype:str,sharex:bool=True,semilogx:bool=False,fig_label:str="Take1",show_stats:bool=False):
+    # init fig, axes, and dims
     fig = plt.figure(figsize=(15, 5),num=fig_label)
-
     axs = []
     dim_labels = []
+
+    n_colors = len(x_list)
+    colors = get_n_colors(n_colors)
     if dim >= 3:
         for i in range(dim):
             axs.append(fig.add_subplot(int(np.ceil(dim/3)),3,i+1))
@@ -37,9 +40,31 @@ def compare_multi_dim_data(x_list:list,data_list:list,dim:int,labels:list,xtype:
                         'shoulder_fe','shoulder_aa','shoulder_ie',
                         'elbow_fe','elbow_ps']]
 
-    n_colors = len(x_list)
-    colors = get_n_colors(n_colors)
+    # plot stats
+    if show_stats:
+        mean = np.mean(np.array(data_list), axis=0)
+        std = np.std(np.array(data_list), axis=0, ddof=1)  # ddof=1 for sample std
+        n = np.array(data_list).shape[0]  # number of repetitions
 
+        # 95% CI using t-distribution
+        sem = std / np.sqrt(n)  # standard error of mean
+        from scipy import stats
+        t_crit = stats.t.ppf(0.975, df=n-1)  # ~4.303 for n=3
+        ci_95 = t_crit * sem
+
+        lower = mean - ci_95
+        upper = mean + ci_95
+        for i, ax in enumerate(axs):
+            if semilogx:
+                ax.semilogx(x_list[0], mean[:, i], ls='-',color="red", label="mean", alpha=0.7, linewidth=3)
+            else:
+                ax.plot(x_list[0], mean[:, i], ls='-',color="red", label="mean", alpha=0.7, linewidth=3)
+            # Plot 95% CI band
+            ax.fill_between(x_list[0], lower[:, i], upper[:, i], 
+                            alpha=0.3, color='blue', label='95% CI')
+            ax.legend()
+            
+    # plot actual data
     for x_array_i,data_array_i,label,color in zip(x_list, data_list, labels, colors):
         if sharex:
             x_array_i = np.column_stack([x_array_i for i in range(dim)])
@@ -59,8 +84,9 @@ def compare_multi_dim_data(x_list:list,data_list:list,dim:int,labels:list,xtype:
             ax.set_xlabel(f'{xtype}')
             ax.set_ylabel(f'{dim_label}')
             ax.set_title(f'{dim_label} vs {xtype}')
-            ax.legend()
+            
             ax.grid(True)
+    
     plt.tight_layout()
     return fig,axs
 
