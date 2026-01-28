@@ -7,7 +7,7 @@ def get_raw_data(data_path):
 			"F2x", "F2y", "F2z", "T2x", "T2y", "T2z",
 			"F3x", "F3y", "F3z", "T3x", "T3y", "T3z"]].values
 	joints = ['trunk_ie','trunk_aa','trunk_fe',
-				'scapula_de','scapula_pr',
+				'clav_dep_ev','clav_prot_ret',
 				'shoulder_fe','shoulder_aa','shoulder_ie',
 				'elbow_fe','elbow_ps',
 				'wrist_fe','wrist_dev']
@@ -18,7 +18,7 @@ def get_raw_data(data_path):
 def get_processed_data(data_path):
 	
 	q = ['trunk_ie','trunk_aa','trunk_fe',
-		'scapula_de','scapula_pr',
+		'clav_dep_ev','clav_prot_ret',
 		'shoulder_fe','shoulder_aa','shoulder_ie',
 		'elbow_fe','elbow_ps']
 	qdot = [f"{joint}_dot" for joint in q]

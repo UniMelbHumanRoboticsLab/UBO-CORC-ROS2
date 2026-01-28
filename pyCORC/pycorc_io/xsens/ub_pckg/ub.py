@@ -248,23 +248,35 @@ if __name__ == "__main__":
     """
     Sanity check your UA model here
     """
-    ub_postures_to_test = [[0,0,0,0,0,0,0,0,90,0,0,0]]
+    ub_postures_to_test = [[0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            90,
+                            0,
+                            0,
+                            0]]
 
     for joints_config in tqdm(ub_postures_to_test):
         joints_pose, ee_pose = ub_xsens.ub_fkine(joints_config)
-        ub_xsens.plot_joints_ees_frame(joints_pose,ee_pose)
+        ub_xsens.ub_model[0].plot(q=np.deg2rad(np.array(joints_config)))
+        # ub_xsens.plot_joints_ees_frame(joints_pose,ee_pose)
 
-        wrenches = np.array([[0,0,-10,0,0,0,
-                    10,0,0,0,0,0,
-                    0,0,-0,3,2.5,0]])
-        tau_dict = ub_xsens.get_joints_torques_traj(np.array([joints_config]),wrenches)
-        print()
-        for i,(key,tau) in enumerate(zip(tau_dict.keys(),tau_dict.values())):
-            if key != "total":
-                i = i-1
-                print(f"{key} Wrenches\t:{wrenches[0,i*6:i*6+6]}")
-                print(f"{key} joint torques (Nm)\t:{tau['raw']}")
-                print()
+        # wrenches = np.array([[0,0,-10,0,0,0,
+        #             10,0,0,0,0,0,
+        #             0,0,-0,3,2.5,0]])
+        # tau_dict = ub_xsens.get_joints_torques_traj(np.array([joints_config]),wrenches)
+        # print()
+        # for i,(key,tau) in enumerate(zip(tau_dict.keys(),tau_dict.values())):
+        #     if key != "total":
+        #         i = i-1
+        #         print(f"{key} Wrenches\t:{wrenches[0,i*6:i*6+6]}")
+        #         print(f"{key} joint torques (Nm)\t:{tau['raw']}")
+        #         print()
 
         # joints_pose, ee_pose = ub_xsens_left.ub_fkine(joints_config)
         # ub_xsens_left.plot_joints_ee_frames(joints_pose,ee_pose)

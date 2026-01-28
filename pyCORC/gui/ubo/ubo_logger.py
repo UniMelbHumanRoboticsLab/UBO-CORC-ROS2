@@ -112,7 +112,7 @@ class ubo_logger(QObject):
         if self.init_args["corc"]["on"]:
             if hasattr(self, 'corc_response'):
                 joints = ['trunk_ie','trunk_aa','trunk_fe',
-                          'scapula_de','scapula_pr',
+                          'clav_dep_ev','clav_prot_ret',
                           'shoulder_fe','shoulder_aa','shoulder_ie',
                           'elbow_fe','elbow_ps',
                           'wrist_fe','wrist_dev']

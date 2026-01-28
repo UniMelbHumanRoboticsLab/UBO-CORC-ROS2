@@ -38,8 +38,8 @@ class ubo_replay_gui(pycorc_gui):
                             'trunk_ie':0,
                             'trunk_aa':0,
                             'trunk_fe':0,
-                            'scapula_de':0,
-                            'scapula_pr':0,
+                            'clav_dep_ev':0,
+                            'clav_prot_ret':0,
                             'shoulder_fe':0,
                             'shoulder_aa':0,
                             'shoulder_ie':0,
@@ -229,7 +229,7 @@ class ubo_replay_gui(pycorc_gui):
                 txt = f"{f:15}: {p:8} {g:8}\n"
 
                 for i,key in  enumerate(['trunk_ie','trunk_aa','trunk_fe',
-                            'scapula_de','scapula_pr',
+                            'clav_dep_ev','clav_prot_ret',
                             'shoulder_fe','shoulder_aa','shoulder_ie',
                             'elbow_fe','elbow_ps','wrist_fe','wrist_dev']):
                     txt += f"{key:15}: {left_list[i]:8.4f} {right_list[i]:8.4f}\n"
@@ -298,7 +298,7 @@ if __name__ == "__main__":
                 "session_data":{
                     "take_num":1,
                     "subject_id":"exp1/p1/vincent",
-                    "task_id":"task_1/var_2"
+                    "task_id":"task_1/var_1"
                 }
                }
         

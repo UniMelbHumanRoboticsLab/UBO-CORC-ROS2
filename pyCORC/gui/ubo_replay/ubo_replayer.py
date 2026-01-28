@@ -34,7 +34,7 @@ class ubo_replayer(QObject):
         print("UBO Replayer Started")
     def read_logged_data(self):
         # read logged data
-        self.data = pd.read_csv(f"{self.subject_path}/UBORecord{self.take_num}Log.csv")
+        self.data = pd.read_csv(f"{self.subject_path}/raw/UBORecord{self.take_num}Log.csv")
         if self.init_args["corc"]["on"]:
             self.corc_data = self.data[["elapsed_time","F1x", "F1y", "F1z", "T1x", "T1y", "T1z",
                     "F2x", "F2y", "F2z", "T2x", "T2y", "T2z",
@@ -42,7 +42,7 @@ class ubo_replayer(QObject):
             
         if self.init_args["xsens"]["on"]:
             joints = ['trunk_ie','trunk_aa','trunk_fe',
-                        'scapula_de','scapula_pr',
+                        'clav_dep_ev','clav_prot_ret',
                         'shoulder_fe','shoulder_aa','shoulder_ie',
                         'elbow_fe','elbow_ps',
                         'wrist_fe','wrist_dev']
@@ -122,11 +122,12 @@ class ubo_replayer(QObject):
             if not self.poll_timer.isActive():
                 try:
                     self.take_num += 1
-                    self.data = pd.read_csv(f"{self.subject_path}/UBORecord{self.take_num}Log.csv")
+                    self.data = pd.read_csv(f"{self.subject_path}/raw/UBORecord{self.take_num}Log.csv")
                     self.frame_id = 0
                 except Exception as e:
                     print(f"Take {self.take_num} DNE")
                     self.take_num = 1
+                    self.frame_id = 0
                 finally:
                     data = self.return_data(f"Starting Take {self.take_num}\n")
                     self.time_ready.emit(data)

@@ -25,7 +25,7 @@ session_data = {
     "task_id":"task_1",
     "sbmvmt_num":4,
     "num_rep":4,
-    "variants":["var_1","var_2","var_3","var_4","var_5","var_6"]
+    "variants":["var_1","var_2","var_3","var_4","var_5","var_6"] #
 }
 subject_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["subject_id"]}')
 # separate variants for train test and save splits to csv
@@ -123,11 +123,14 @@ for var in session_data["variants"]:
         """ Time Normalization """
         # rescale all data to the reference demo time
         plot_results = False # check if time normalization fucks up the data
-        corc_data       = rescale(time_data, corc_data,     time_data_norm, datatype=f"wrenches_norm_{var}-Rep{rep}",    plot_results=plot_results)
-        q_traj          = rescale(time_data, q_traj,        time_data_norm, datatype=f"q_norm_{var}-Rep{rep}",           plot_results=plot_results)
-        qdot_traj       = rescale(time_data, qdot_traj,     time_data_norm, datatype=f"qdot_norm_{var}-Rep{rep}",        plot_results=plot_results)
-        hand_pos_traj   = rescale(time_data, hand_pos_traj, time_data_norm, datatype=f"hand_pos_norm_{var}-Rep{rep}",    plot_results=plot_results)
-        hand_speed      = rescale(time_data, hand_speed,    time_data_norm, datatype=f"hand_speed_norm_{var}-Rep{rep}",  plot_results=plot_results)
+        corc_data       = rescale(time_data, corc_data,     time_data_norm, datatype=f"wrenches_norm_{var}-Rep{rep}",   plot_results=plot_results)
+        q_traj          = rescale(time_data, q_traj,        time_data_norm, datatype=f"q_norm_{var}-Rep{rep}",          plot_results=plot_results)
+        qdot_traj       = rescale(time_data, qdot_traj,     time_data_norm, datatype=f"qdot_norm_{var}-Rep{rep}",       plot_results=plot_results)
+        q_traj_rad      = np.deg2rad(q_traj)
+        qdot_traj_rad   = np.deg2rad(qdot_traj)
+
+        hand_pos_traj   = rescale(time_data, hand_pos_traj, time_data_norm, datatype=f"hand_pos_norm_{var}-Rep{rep}",   plot_results=plot_results)
+        hand_speed      = rescale(time_data, hand_speed,    time_data_norm, datatype=f"hand_speed_norm_{var}-Rep{rep}", plot_results=plot_results)
         for rft_key in rft_keys+["total"]:
             taus_traj[rft_key]["filtered-rescaled"] = rescale(time_data, taus_traj[rft_key]["filtered-rescaled"], time_data_norm, datatype=f"tau_norm_{rft_key}_{var}-Rep{rep}",    plot_results=plot_results)
 
@@ -138,14 +141,14 @@ for var in session_data["variants"]:
         """ Extract TP """
         # extract task parameters from each submovements (Input: joint kinematics, output: joint torques)
         q = ['trunk_ie','trunk_aa','trunk_fe',
-                'scapula_de','scapula_pr',
+                'clav_dep_ev','clav_prot_ret',
                 'shoulder_fe','shoulder_aa','shoulder_ie',
                 'elbow_fe','elbow_ps']
         qdot = [f"{joint}_dot" for joint in q]
         tau_list = [f"tau_{joint}" for joint in q]
         num_dim = len(q)+len(qdot)+len(tau_list)
         task_params_A   = np.vstack([np.eye(num_dim).flatten() for _ in range(sbmvmt_indices.shape[0])])
-        task_params_b   = np.hstack([q_traj[sbmvmt_indices,:], qdot_traj[sbmvmt_indices,:],np.zeros((sbmvmt_indices.shape[0],len(tau_list)))])  # tau should have zero offset
+        task_params_b   = np.hstack([q_traj_rad[sbmvmt_indices,:], qdot_traj_rad[sbmvmt_indices,:],np.zeros((sbmvmt_indices.shape[0],len(tau_list)))])  # tau should have zero offset
         task_params     = np.hstack([task_params_A, task_params_b])
         tp_df = pd.DataFrame(task_params, columns=[f"A{j}" for j in range(1,num_dim*num_dim+1)] + [f"b{j}" for j in range(1,num_dim+1)])
         tp_df.to_csv(f'{subject_path}/{session_data["task_id"]}/{var}/processed/tp/UBOTP{rep}Log.csv',index=False)
@@ -161,43 +164,44 @@ for var in session_data["variants"]:
             "sbmvmt": sbmvmt_indices,
             "task_params": task_params_b
         }
-        full_processed_data = np.hstack([time_data_norm[:,np.newaxis],indices_traj,q_traj,qdot_traj,taus_traj["total"]["filtered-rescaled"]])
+        full_processed_data = np.hstack([time_data_norm[:,np.newaxis],indices_traj,q_traj_rad,qdot_traj_rad,taus_traj["total"]["filtered-rescaled"]])
         df_column = ["norm_time","index"]+q+qdot+tau_list
         full_df = pd.DataFrame(full_processed_data,columns=df_column)
         full_df.to_csv(f'{subject_path}/{session_data["task_id"]}/{var}/processed/UBORecord{rep}Log.csv',index=False)
 
         # for plotting
         time_list.append(time_data_norm)
-        q_traj_list.append(q_traj)
-        qdot_traj_list.append(qdot_traj)
+        q_traj_list.append(q_traj_rad)
+        qdot_traj_list.append(qdot_traj_rad)
         hand_3d_traj_list.append(hand_pos_traj)
         sbmvmt_list.append(indices_traj)  
         rep_label_list.append(f'{var}-Rep{rep}')
 
-# fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list)
-qfig,qaxs = compare_multi_dim_data(
+fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list)
+compare_multi_dim_data(
         time_list,
         q_traj_list,
         10,
         rep_label_list,
         'Time(s)',
-        "q",
+        "q_rad",
         sharex=True,
         semilogx=False,
-        fig_label=f"joint angle",
+        fig_label=f"joint angle - rad",
         show_stats=True)
 
-qdot_fig,qdot_axs = compare_multi_dim_data(
+compare_multi_dim_data(
         time_list,
         qdot_traj_list,
         10,
         rep_label_list,
         'Time(s)',
-        "qdot",
+        "qdot_rad",
         sharex=True,
         semilogx=False,
-        fig_label=f"joint angle velocity",
+        fig_label=f"joint angle velocity - rad/s",
         show_stats=True)
+
 # compare_multi_dim_data(
 #         time_list,
 #         sbmvmt_list,
@@ -208,6 +212,20 @@ qdot_fig,qdot_axs = compare_multi_dim_data(
 #         sharex=True,
 #         semilogx=False,
 #         fig_label=f"submovement")
+
+# sanity check velocity (zero crossing should match peak positions)
+# for i,(qtraj,qdot_traj) in enumerate(zip(q_traj_list,qdot_traj_list)):
+#     compare_multi_dim_data(
+#             [time_data_norm,time_data_norm],
+#             [qtraj,qdot_traj],
+#             10,
+#             ["traj","vel"],
+#             'Time(s)',
+#             "qqdot",
+#             sharex=True,
+#             semilogx=False,
+#             fig_label=f"qqdot_{i}",
+#             show_zero_cross=True)
 
 #%% 
 """ check individual RFT wrench and generated torques for all vars-reps """

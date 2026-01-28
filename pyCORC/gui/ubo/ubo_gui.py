@@ -37,8 +37,8 @@ class ubo_gui(pycorc_gui):
                             'trunk_ie':0,
                             'trunk_aa':0,
                             'trunk_fe':0,
-                            'scapula_de':0,
-                            'scapula_pr':0,
+                            'clav_dep_ev':0,
+                            'clav_prot_ret':0,
                             'shoulder_fe':0,
                             'shoulder_aa':0,
                             'shoulder_ie':0,
@@ -275,7 +275,7 @@ class ubo_gui(pycorc_gui):
                 txt = f"XSENS Timecode:{timecode}\n"
     
                 for i,key in  enumerate(['trunk_ie','trunk_aa','trunk_fe',
-                            'scapula_de','scapula_pr',
+                            'clav_dep_ev','clav_prot_ret',
                             'shoulder_fe','shoulder_aa','shoulder_ie',
                             'elbow_fe','elbow_ps','wrist_fe','wrist_dev']):
                     txt += f"{key:15}: {left_list[i]:8.4f} {right_list[i]:8.4f}\n"

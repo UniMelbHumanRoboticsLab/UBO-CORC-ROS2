@@ -11,3 +11,6 @@ plotjuggler_layout.xml
 *.docx
 *.mp4
 robotics-toolbox-python/
+*.nbc
+*.nbi
+lfd/tpgmm/tutorial_data/
