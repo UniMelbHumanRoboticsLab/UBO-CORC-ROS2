@@ -1,11 +1,50 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+import sys,os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+import data_analyse.stats_pkg 
+
 """ get muliti color """
 def get_n_colors(n_colors:int):
     cmap = plt.colormaps['tab10']
     colors = [cmap(i / (n_colors)) for i in range(n_colors)]
     return colors
+
+""" plot confidence interval and mean for n-lists list (each element in the list is a list of  2d arrays)"""
+def plot_mean_ci(x:np.ndarray, data_list:list, fig=None,axs=None,labels:str="",relimit=False):
+
+    # reinitilize the limits if needed
+    # if relimit:
+    #     temp_arr = np.array(data_list)
+    #     limits = [np.min(temp_arr),np.max(temp_arr)]
+    #     for i, ax in enumerate(axs):
+    #         axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
+
+    colors = get_n_colors(len(data_list))
+    for data,color,label in zip(data_list,colors,labels):
+        mean = np.mean(np.array(data), axis=0)
+        std = np.std(np.array(data), axis=0, ddof=1)  # ddof=1 for sample std
+        n = np.array(data).shape[0]  # number of repetitions
+
+        # 95% CI using t-distribution
+        sem = std / np.sqrt(n)  # standard error of mean
+        from scipy import stats
+        t_crit = stats.t.ppf(0.975, df=n-1)  # ~4.303 for n=3
+        ci_95 = t_crit * sem
+
+        lower = mean - ci_95
+        upper = mean + ci_95
+        for i, ax in enumerate(axs):
+            ax.plot(x, mean[:, i], ls='-',color=color, label=f"mean {label}", alpha=0.7, linewidth=3)
+            # Plot 95% CI band
+            ax.fill_between(x, lower[:, i], upper[:, i], 
+                            alpha=0.3, color=color, label=f'95% CI {label}')
+        # ax.legend()
+        # place legend outside the plot
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(handles, labels,loc='lower right', ncol=2, draggable=True)
 
 """compare multi dim data function individually from multiple sources"""
 def compare_multi_dim_data(x_list:list,data_list:list,
@@ -13,12 +52,10 @@ def compare_multi_dim_data(x_list:list,data_list:list,
                            sharex:bool=True,semilogx:bool=False,
                            fig_label:str="Take1",
                            show_stats:bool=False,show_zero_cross:bool=False):
-    # init fig, axes, and dims
-    fig = plt.figure(figsize=(15, 5),num=fig_label)
+    # init fig, axes
+    fig = plt.figure(figsize=(15, 5),num=fig_label,tight_layout=True)
     axs = []
-    dim_labels = []
-    n_colors = len(x_list)
-    colors = get_n_colors(n_colors)
+    colors = get_n_colors(len(x_list))
 
     # adjust the dimension labels for specific dimensions
     if dim == 1:
@@ -35,7 +72,7 @@ def compare_multi_dim_data(x_list:list,data_list:list,
                         'shoulder_fe','shoulder_aa','shoulder_ie',
                         'elbow_fe','elbow_ps']]
         
-    # set the col , rows and the limits
+    # initialize the col, rows, limits, titles, labels etc
     if datatype == 'q' or datatype == 'q_rad':
         limits =[
             (-50, 50), # trunk ie
@@ -49,7 +86,7 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             (-10, 170), # elbow fe
             (-10, 190) # elbow ps
         ]
-    else:
+    elif len(data_list) > 0:
         temp_arr = np.array(data_list)
         limits = [np.min(temp_arr),np.max(temp_arr)]
 
@@ -58,37 +95,23 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             axs.append(fig.add_subplot(int(np.ceil(dim/3)),3,i+1))
         else:
             axs.append(fig.add_subplot(1,dim,i+1))
-        if datatype == "q":
-            axs[i].set_ylim(limits[i][0],limits[i][1])
-        elif datatype == "q_rad":
-            axs[i].set_ylim(np.deg2rad(limits[i][0]),np.deg2rad(limits[i][1]))
-        else:
-            axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
-        dim_labels.append(f"{datatype}_{i}")
+
+        if len(data_list) > 0:
+            if datatype == "q":
+                axs[i].set_ylim(limits[i][0],limits[i][1])
+            elif datatype == "q_rad":
+                axs[i].set_ylim(np.deg2rad(limits[i][0]),np.deg2rad(limits[i][1]))
+            else:
+                axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
+
+        axs[i].set_xlabel(f'{xtype}')
+        axs[i].set_ylabel(f'{dim_labels[i]}')
+        axs[i].set_title(f'{dim_labels[i]} vs {xtype}')
+        axs[i].grid(True)
 
     # plot stats
     if show_stats:
-        mean = np.mean(np.array(data_list), axis=0)
-        std = np.std(np.array(data_list), axis=0, ddof=1)  # ddof=1 for sample std
-        n = np.array(data_list).shape[0]  # number of repetitions
-
-        # 95% CI using t-distribution
-        sem = std / np.sqrt(n)  # standard error of mean
-        from scipy import stats
-        t_crit = stats.t.ppf(0.975, df=n-1)  # ~4.303 for n=3
-        ci_95 = t_crit * sem
-
-        lower = mean - ci_95
-        upper = mean + ci_95
-        for i, ax in enumerate(axs):
-            if semilogx:
-                ax.semilogx(x_list[0], mean[:, i], ls='-',color="red", label="mean", alpha=0.7, linewidth=3)
-            else:
-                ax.plot(x_list[0], mean[:, i], ls='-',color="red", label="mean", alpha=0.7, linewidth=3)
-            # Plot 95% CI band
-            ax.fill_between(x_list[0], lower[:, i], upper[:, i], 
-                            alpha=0.3, color='blue', label='95% CI')
-            ax.legend()
+        plot_mean_ci(x_list[0], [data_list], fig=fig,axs=axs)
             
     # plot actual data
     for i,(x_array_i,data_array_i,label,color) in enumerate(zip(x_list, data_list, labels, colors)):
@@ -100,27 +123,20 @@ def compare_multi_dim_data(x_list:list,data_list:list,
 
         linewidth = 1
         alpha = 0.7
-
-        for j,(ax,dim_label) in enumerate(zip(axs,dim_labels)):
+        for j,ax in enumerate(axs):
             if semilogx:
                 ax.semilogx(x_array_i[:, j], data_array_i[:, j], ls='-',color=color, label=label, alpha=alpha, linewidth=linewidth)
             else:
                 ax.plot(x_array_i[:, j], data_array_i[:, j], ls='-',color=color, label=label, alpha=alpha, linewidth=linewidth)
 
-            ax.set_xlabel(f'{xtype}')
-            ax.set_ylabel(f'{dim_label}')
-            ax.set_title(f'{dim_label} vs {xtype}')
-            ax.grid(True)
-
     # sanity check for zero crossings cuz why not
     for j,ax in enumerate(axs):
         if show_zero_cross:
             plot_velocity_zero_crossings(x_array_i[:, j], data_array_i[:, j], ax)
-        else:
-            ax.legend()
-            # break
 
-    
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(handles, labels,loc='lower right', ncol=4)
+
     plt.tight_layout()
     return fig,axs
 
@@ -130,7 +146,7 @@ def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None):
     colors = get_n_colors(n_colors)
 
     if fig is None or ax is None:
-        fig, ax = plt.subplots(figsize=(15, 5), subplot_kw={'projection': '3d'},num="3D Trajectory")
+        fig, ax = plt.subplots(figsize=(15, 5), subplot_kw={'projection': '3d'},num="3D Trajectory",tight_layout=True)
 
         ax.set_xlim([-0.9, 0.9])
         ax.set_ylim([-0.9, 0.9])
@@ -155,7 +171,7 @@ def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None):
 """plot 3d points function"""
 def plot_3d_points(traj_list:list,label_list:list,fig=None,ax=None):
     if fig is None or ax is None:
-        fig, ax = plt.subplots(figsize=(15, 5), subplot_kw={'projection': '3d'})
+        fig, ax = plt.subplots(figsize=(15, 5), subplot_kw={'projection': '3d'},tight_layout=True)
 
         ax.set_xlim([-0.9, 0.9])
         ax.set_ylim([-0.9, 0.9])
@@ -179,7 +195,7 @@ def plot_3d_points(traj_list:list,label_list:list,fig=None,ax=None):
 
 """ plot submovements for a single 3d trajectory"""
 def plot_3d_submovements(traj,sbmvmt_indices):
-    fig, ax = plt.subplots(figsize=(15, 5), subplot_kw={'projection': '3d'})
+    fig, ax = plt.subplots(figsize=(15, 5), subplot_kw={'projection': '3d'},tight_layout=True)
     ax.set_xlim([-0.9, 0.9])
     ax.set_ylim([-0.9, 0.9])
     ax.set_zlim([-0.2, 1.6])

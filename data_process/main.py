@@ -9,14 +9,13 @@ np.set_printoptions(
     formatter={'float_kind': lambda x: f"{x:.4f}"}
 )
 
-from plot_data import compare_multi_dim_data,plot_3d_trajectory,plot_3d_points
-from process_data import lpf,calc_fixed_diff,calc_mag,segment_sbmvmts,rescale,separate_train_test,separate_train_val
-from unpack_csv import get_raw_data
+from plot_pkg import compare_multi_dim_data,plot_3d_trajectory,plot_3d_points
+from post_process_pkg import lpf,calc_fixed_diff,calc_mag,segment_sbmvmts,rescale,separate_train_test,separate_train_val
+from csv_pkg import get_raw_data
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from pyCORC.pycorc_io.xsens.ub_pckg.ub import ub
 from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
-
 
 #%% 
 """ init session parameters and perform train / test / validation spliting"""
@@ -29,8 +28,8 @@ session_data = {
 }
 subject_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["subject_id"]}')
 # separate variants for train test and save splits to csv
-case_id,train_var,test_var = separate_train_test(session_data["variants"],f'{subject_path}/{session_data["task_id"]}/train_test_split.csv')
-train_set , val_set = separate_train_val(train_var,session_data["num_rep"],f'{subject_path}/{session_data["task_id"]}/train_val_split.csv')
+# case_id,train_var,test_var = separate_train_test(session_data["variants"],f'{subject_path}/{session_data["task_id"]}/train_test_split.csv')
+# train_set , val_set = separate_train_val(train_var,session_data["num_rep"],f'{subject_path}/{session_data["task_id"]}/train_val_split.csv')
 
 """ init xsens skeleton model """
 body_params_rbt,ft_grav_offset = get_subject_params(subject_path)
@@ -70,7 +69,6 @@ for var in session_data["variants"]:
         dt_unscaled = np.mean(np.diff(time_data_unscaled))
         corc_data   = lpf(time_data_unscaled,corc_data_unscaled,ts=dt_unscaled,fc=fc,datatype=f"wrenches_{var}-Rep{rep}",   plot_results=plot_results)
         q_traj      = lpf(time_data_unscaled,q_traj_unscaled,   ts=dt_unscaled,fc=fc,datatype=f"q_{var}-Rep{rep}",          plot_results=plot_results)
-
         # calculate joint space kinematic and filter
         qdot_traj   = calc_fixed_diff(q_traj, dt=dt_unscaled)
         qdot_traj   = lpf(time_data_unscaled, qdot_traj, ts=dt_unscaled, fc=1.5, datatype=f"qdot_{var}-Rep{rep}", plot_results=plot_results)
@@ -190,28 +188,28 @@ compare_multi_dim_data(
         fig_label=f"joint angle - rad",
         show_stats=True)
 
-compare_multi_dim_data(
-        time_list,
-        qdot_traj_list,
-        10,
-        rep_label_list,
-        'Time(s)',
-        "qdot_rad",
-        sharex=True,
-        semilogx=False,
-        fig_label=f"joint angle velocity - rad/s",
-        show_stats=True)
-
 # compare_multi_dim_data(
 #         time_list,
-#         sbmvmt_list,
-#         1,
+#         qdot_traj_list,
+#         10,
 #         rep_label_list,
 #         'Time(s)',
-#         "sbmvmt",
+#         "qdot_rad",
 #         sharex=True,
 #         semilogx=False,
-#         fig_label=f"submovement")
+#         fig_label=f"joint angle velocity - rad/s",
+#         show_stats=True)
+
+compare_multi_dim_data(
+        time_list,
+        sbmvmt_list,
+        1,
+        rep_label_list,
+        'Time(s)',
+        "sbmvmt",
+        sharex=True,
+        semilogx=False,
+        fig_label=f"submovement")
 
 # sanity check velocity (zero crossing should match peak positions)
 # for i,(qtraj,qdot_traj) in enumerate(zip(q_traj_list,qdot_traj_list)):
@@ -258,15 +256,15 @@ for i, rft_key in enumerate(rft_keys+["total"]):
             sharex=True,
             semilogx=False,
             fig_label=f"{rft_key}")
-    compare_multi_dim_data(
-            time_list,
-            taus_list,
-            taus_list[0].shape[1],
-            rep_label_list,
-            'Time(s)',
-            f"tau_{rft_key}",
-            sharex=True,
-            semilogx=False,
-            fig_label=f"tau_{rft_key}",
-            show_stats=True)
+#     compare_multi_dim_data(
+#             time_list,
+#             taus_list,
+#             taus_list[0].shape[1],
+#             rep_label_list,
+#             'Time(s)',
+#             f"tau_{rft_key}",
+#             sharex=True,
+#             semilogx=False,
+#             fig_label=f"tau_{rft_key}",
+#             show_stats=True)
 plt.show(block=True)

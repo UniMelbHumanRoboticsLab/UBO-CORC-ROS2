@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from plot_data import compare_multi_dim_data,plot_3d_submovements
+from plot_pkg import compare_multi_dim_data,plot_3d_submovements
 from scipy.interpolate import CubicSpline
 
 """ separate variations into train test """
