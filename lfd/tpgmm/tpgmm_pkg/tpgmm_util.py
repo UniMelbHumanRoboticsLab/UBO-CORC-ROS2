@@ -1,0 +1,167 @@
+import sys,os
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+
+import numpy as np
+from tpgmm_objects import Sample,TaskParams
+from matplotlib.patches import Polygon
+import pickle
+
+def get_optim_nbGauss(data):
+    from sklearn.mixture import GaussianMixture as GMM_sk
+    from gmr.utils import check_random_state
+    random_state = check_random_state(0)
+    from sklearn.model_selection import GridSearchCV
+    import seaborn as sns
+    import pandas as pd
+
+    from sklearn.preprocessing import MinMaxScaler
+
+    # Standardize for proper model selection
+    q_data_unscaled,qdot_data_unscaled,tau_data_unscaled = data[:,0:10],data[:,10:20],data[:,20:-1]
+
+    # Normalize q_data into unit vectors for each row
+    q_data = q_data_unscaled / np.linalg.norm(q_data_unscaled, axis=1, keepdims=True)
+    qdot_data = qdot_data_unscaled / np.linalg.norm(qdot_data_unscaled, axis=1, keepdims=True)
+    tau_data = tau_data_unscaled / np.linalg.norm(tau_data_unscaled, axis=1, keepdims=True)
+    data_scaled = np.hstack((q_data,qdot_data,tau_data))
+    # data_scaled = np.hstack((q_data_unscaled,qdot_data_unscaled,tau_data_unscaled))
+
+    def gmm_bic_score(estimator, X):
+        """Callable to pass to GridSearchCV that will use the BIC score."""
+        # Make it negative since GridSearchCV expects a score to maximize
+        return -estimator.bic(X)
+
+    optim_n_gauss = 1000
+    n_components = 5
+    param_grid = {
+        "n_components": range(1, n_components+1),
+        "covariance_type": ["full"],
+    }
+    all_results_df = pd.DataFrame()
+
+    while n_components <= 100:
+        grid_search = GridSearchCV(
+            # GMM_sk(random_state=random_state,init_params='k-means++',warm_start=True), param_grid=param_grid, scoring=gmm_bic_score,verbose=3,n_jobs=1
+            GMM_sk(init_params='k-means++',warm_start=True), param_grid=param_grid, scoring=gmm_bic_score,verbose=3,n_jobs=-1)
+        grid_search.fit(data_scaled)
+        optim_n_gauss = grid_search.best_params_['n_components']
+
+        grid_search_df = pd.DataFrame(grid_search.cv_results_)[
+            ["param_n_components", "param_covariance_type", "mean_test_score"]
+        ]
+        all_results_df = pd.concat([all_results_df, grid_search_df], ignore_index=True)
+
+        if optim_n_gauss < n_components-4:
+            print(f"\n\nSelected GMM (scaled): {grid_search.best_params_['covariance_type']} model, {optim_n_gauss} components")
+            break
+        else:
+            n_components += 5
+            print(f"\n{optim_n_gauss} is too close to the limit. Reoptimizing to {n_components} n_components")
+            param_grid = {
+                "n_components": range(optim_n_gauss, n_components+1),
+                "covariance_type": ["full"],
+            }
+
+    all_results_df["mean_test_score"] = -all_results_df["mean_test_score"]
+    all_results_df = all_results_df.rename(
+        columns={
+            "param_n_components": "Number of components",
+            "param_covariance_type": "Type of covariance",
+            "mean_test_score": "BIC score",
+        }
+    )
+    all_results_df.sort_values(by="BIC score").head()
+    sns.catplot(
+        data=all_results_df,
+        kind="bar",
+        x="Number of components",
+        y="BIC score",
+        hue="Type of covariance",
+    )
+    
+    optim_n_gauss = grid_search.best_params_['n_components']
+    return optim_n_gauss
+
+"""
+Function to transform / arrange data into samples / extract task parameters from each sample 
+"""
+def transform_data(data,tp,num_of_frames,num_of_dim,num_of_gauss):
+    # extract every frame transformation for current sample
+    A = np.array([tp[i,:(num_of_dim*num_of_dim)].reshape((num_of_dim,num_of_dim)).transpose() for i in range(num_of_frames)])
+    invA = np.array([np.linalg.inv(A[i]) for i in range(num_of_frames)])
+    b = np.array([tp[i,(num_of_dim*num_of_dim):].reshape((num_of_dim,1)) for i in range(num_of_frames)])
+    paramsObj = TaskParams(A=A,b=b,invA=invA,num_of_gauss=num_of_gauss,num_of_dim=num_of_dim,num_of_frames=num_of_frames)
+    
+    # arrange the original trajectory referencing inertial frame
+    if data is not None:
+        num_of_data_points = data.shape[0]
+        sampleObj = Sample(params=paramsObj,Data=data,nbData=num_of_data_points)
+    
+        tp_traj = np.empty((num_of_data_points,num_of_dim,num_of_frames))
+        # task parameterize the current trajectory according to each frame
+        for i in range(num_of_frames):
+            displaced = np.expand_dims(data-b[i].T,axis=2)
+            rotate = np.squeeze(np.matmul(invA[i],displaced),axis=2)
+            tp_traj[:,:,i] = rotate
+    else:
+        sampleObj = Sample(params=paramsObj,Data=None,nbData=None)
+        tp_traj = None
+    return tp_traj,sampleObj
+def arrange_data(data_dict_list,num_of_frames,num_of_dim,num_of_gauss):
+    tp_data_list = []
+    sample_list = []
+    for data_dict in data_dict_list:
+        if "data" in data_dict:
+            data = data_dict["data"]
+        else:
+            data = None
+        cur_tp = data_dict["tp"]
+
+        tp_data,sampleObj = transform_data(data,cur_tp,num_of_frames,num_of_dim,num_of_gauss)
+        tp_data_list.append(tp_data)
+        sample_list.append(sampleObj)
+    
+    tp_data_arr = np.vstack(tp_data_list)
+    return tp_data_arr,sample_list
+
+"""
+plot for 2D cartesian trajectory
+"""
+def plotPegs_n_Traj(num_of_frames,sampleParam,expected_data,ax):
+
+    import random
+    colors = "brcmyo"
+    num = int(np.floor(random.random()*4))
+    expected_data = expected_data.T
+
+    # plot the pegs
+    colPegs = ['k','g']
+    pegMesh = np.array([[-4,-4,-1.5,-1.5,1.5,1.5,4,4,4],[-3.5,10,10,-1,-1,10,10,-3.5,-3.5]])*0.1
+    
+    for i in range(num_of_frames):
+        colPeg = colPegs[i]
+        dispMesh = np.matmul(sampleParam.params.A[i,1:,1:],pegMesh) + sampleParam.params.b[i,1:]
+        poly = Polygon(dispMesh.T, facecolor = colPegs[i])
+        ax.add_patch(poly)
+        ax.scatter(sampleParam.params.b[i,1],sampleParam.params.b[i,2],c="g")
+
+    # plot trajectory
+    ax.scatter(expected_data[0,0],expected_data[1,0],c="b",label="Starting")
+    ax.scatter(expected_data[0,-1],expected_data[1,-1],c="b",label="Ending")
+    ax.plot(expected_data[0,:],expected_data[1,:], c = colors[num], lw=2,label="Ori")
+
+"""
+save results for future comparison
+"""
+def save_results(time,actual_data,repro_data,filename):
+    q = ['trunk_ie','trunk_aa','trunk_fe',
+		'clav_dep_ev','clav_prot_ret',
+		'shoulder_fe','shoulder_aa','shoulder_ie',
+		'elbow_fe','elbow_ps']
+    tau_repro = [f"tau_{joint}_repro" for joint in q]
+    tau = [f"tau_{joint}_gt" for joint in q]
+    
+    import pandas as pd
+    df = pd.DataFrame(np.hstack((time[:,np.newaxis],actual_data,repro_data)),columns=["norm_time"]+tau+tau_repro)
+    df.to_csv(filename,index=False)
+
