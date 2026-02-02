@@ -4,7 +4,7 @@ import numpy as np
 import sys,os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-import data_analyse.stats_pkg 
+import data_analyse.metrics_pkg 
 
 """ get muliti color """
 def get_n_colors(n_colors:int):
