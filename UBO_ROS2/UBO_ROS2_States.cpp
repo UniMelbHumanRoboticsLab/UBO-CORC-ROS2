@@ -148,6 +148,7 @@ void UBORecordState::entryCode(void) {
 
 void UBORecordState::duringCode(void){
     Eigen::VectorXd curReadings = robot->getCorrectedUBO_readings();
+    Eigen::VectorXd olStatus = robot->getUBO_OLStatus();
 
     // Check if some sensors are not responding properly every one second
     if(ticker % 100 == 99){
@@ -161,7 +162,7 @@ void UBORecordState::duringCode(void){
 
     robot->printUBO_readings(curReadings);
     sm->UIserver->sendState();
-    sm->get_node()->publish_wrenches(curReadings);
+    sm->get_node()->publish_wrenches(curReadings,olStatus);
     ticker++;
 };
 

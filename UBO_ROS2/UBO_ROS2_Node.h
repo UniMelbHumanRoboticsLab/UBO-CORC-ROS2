@@ -25,7 +25,7 @@ public:
     UBO_ROS2_Node(const std::string &name, UBORobot *robot);
 
     void publish_state(std::string status);
-    void publish_wrenches(Eigen::VectorXd wrenches);
+    void publish_wrenches(Eigen::VectorXd wrenches,Eigen::VectorXd olStatus);
 
     rclcpp::node_interfaces::NodeBaseInterface::SharedPtr get_interface();
 
@@ -37,6 +37,7 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr wrench1_pub;
     rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr wrench2_pub;
     rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr wrench3_pub;
+    rclcpp::Publisher<geometry_msgs::msg::Vector3>::SharedPtr rft_stats;
     
 };
 

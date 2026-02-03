@@ -10,13 +10,15 @@ UBO_ROS2_Node::UBO_ROS2_Node(const std::string &name, UBORobot *robot)
 
     // Create a status publisher
     status_pub = create_publisher<std_msgs::msg::String>(
-        "rbt_state", 1000    );
+        "rbt_state", 500    );
     wrench1_pub = create_publisher<geometry_msgs::msg::WrenchStamped>(
-        "rft1_wrench", 1000    );
+        "rft1_wrench", 500    );
     wrench2_pub = create_publisher<geometry_msgs::msg::WrenchStamped>(
-        "rft2_wrench", 1000    );
+        "rft2_wrench", 500    );
     wrench3_pub = create_publisher<geometry_msgs::msg::WrenchStamped>(
-        "rft3_wrench", 1000    );
+        "rft3_wrench", 500    );
+    rft_stats = create_publisher<geometry_msgs::msg::Vector3>(
+        "rft_stats", 500    );
 
 }
 
@@ -42,7 +44,7 @@ UBO_ROS2_Node::publish_state(std::string status)
 }
 
 void
-UBO_ROS2_Node::publish_wrenches(Eigen::VectorXd wrenches)
+UBO_ROS2_Node::publish_wrenches(Eigen::VectorXd wrenches,Eigen::VectorXd olStatus)
 {
     // Instantiate joint state message
     // spdlog::debug("publishing");
@@ -55,7 +57,7 @@ UBO_ROS2_Node::publish_wrenches(Eigen::VectorXd wrenches)
         geometry_msgs::msg::WrenchStamped msg;
 
         msg.header.stamp = this->now();
-        msg.header.frame_id= "origin";
+        msg.header.frame_id= std::to_string(olStatus[i]);
 
         msg.wrench.force.x = wrenches[i*6+0];
         msg.wrench.force.y = wrenches[i*6+1];
@@ -77,6 +79,14 @@ UBO_ROS2_Node::publish_wrenches(Eigen::VectorXd wrenches)
             wrench3_pub->publish(msg);
         }
     }
+    
+    geometry_msgs::msg::Vector3 msg2;
+    msg2.x = olStatus[0];
+    msg2.y = olStatus[1];
+    msg2.z = olStatus[2];
+    rft_stats->publish(msg2);
+    
+    
 }
 
 
