@@ -32,24 +32,15 @@ class ubo_gui(pycorc_gui):
         self.gui_args = self.init_args["init_flags"]["gui"]
         self.log_args = self.init_args["init_flags"]["log"]
         self.session_data = self.init_args["session_data"]
+        self.body_params_rbt,self.ft_grav,self.ft_install = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}'))
+        self.bias_response = np.array([0 for i in range(18)])
         
-        self.place_holder_angles ={
-                            'trunk_ie':0,
-                            'trunk_aa':0,
-                            'trunk_fe':0,
-                            'clav_dep_ev':0,
-                            'clav_prot_ret':0,
-                            'shoulder_fe':0,
-                            'shoulder_aa':0,
-                            'shoulder_ie':0,
-                            'elbow_fe':0,
-                            'elbow_ps':0,
-                            'wrist_fe':0,
-                            'wrist_dev':0
-                        }
-            
-        self.body_params_rbt,self.ft_grav = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}'))
-        print(self.body_params_rbt,self.ft_grav)
+        for dict_type,param_dict in zip(["BODY PARAMS","FT_GRAV","FT_INSTALL"],[self.body_params_rbt,self.ft_grav,self.ft_install]):
+            print()
+            print(dict_type)
+            for (key,value) in param_dict.items():
+                print(f"{key}:{value}")
+        print()
 
         self.num_closed_threads = 0
         self.num_opened_threads = 0
@@ -103,7 +94,7 @@ class ubo_gui(pycorc_gui):
             robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine([0]*12)
             
             if self.gui_args["on"] and self.gui_args["3d"]:
-                if self.xsens_args["on"] or self.init_args["rig"]:
+                if self.xsens_args["on"]:
                     body = self.init_line(points=robot_joints.t,color=color)
                     ees = [self.init_frame(pos=ee_pose.t,rot=ee_pose.R*0.1) for ee_pose in robot_ee]
                     self.skeleton[side]["body"] = body
@@ -193,6 +184,7 @@ class ubo_gui(pycorc_gui):
                 self.xsens_worker.data_ready.connect(self.logger_worker.update_xsens,type=Qt.ConnectionType.QueuedConnection)
             # connect logger to sensor gui
             self.logger_worker.time_ready.connect(self.update_logger,type=Qt.ConnectionType.QueuedConnection)
+            self.logger_worker.bias_ready.connect(self.update_bias,type=Qt.ConnectionType.QueuedConnection)
             # connect thread start to add opened threads  
             self.logger_thread.started.connect(self.add_opened_threads)
             # connect worker stop to stop thread at closeup
@@ -221,10 +213,11 @@ class ubo_gui(pycorc_gui):
         self.corc_response = corc_response
     def update_xsens(self,xsens_response):
         self.xsens_response = xsens_response
-        # print("HI")
     @Slot(dict)
     def update_logger(self,logger_response):
         self.logger_response = logger_response
+    def update_bias(self,bias_response):
+        self.bias_response = bias_response["bias"]
 
     """
     Update Main GUI Helper Functions and Callback
@@ -244,17 +237,16 @@ class ubo_gui(pycorc_gui):
             # get the orientation of the sensors if exist:
             if hasattr(self, 'xsens_response'):
                 robot_joints, robot_ee = self.skeleton["right"]["ub_xsens"].ub_fkine(self.xsens_response["right"]["list"])
-            else:
-                robot_joints, robot_ee = self.skeleton["right"]["ub_xsens"].ub_fkine(list(self.place_holder_angles.values()))
-
+            
             for i in range(NUM_RFT):
-                offsets = [x * self.ft_grav[rft_key[i]] for x in [0,-1,0]]
-                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(offsets+[0,0,0])
+                offset2 = np.array(self.ft_install[rft_key[i]])-self.bias_response[i*6:i*6+6]
+                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(offset2)
                 
-                # weight compensate with skeleton config
-                pose = robot_ee[i + 1]
-                weight_comp = [x * self.ft_grav[rft_key[i]] for x in [0,0,-1]]
-                force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
+                # weight compensate with if robot_ee exist
+                if hasattr(self, 'xsens_response'):
+                    pose = robot_ee[i + 1]
+                    weight_comp = [x * self.ft_grav[rft_key[i]] for x in [0,0,-1]]
+                    force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
 
                 txt += f"UBO_{i} Force(N): {force_data[0]:8.4f} {force_data[1]:8.4f} {force_data[2]:8.4f} | Moment(Nm): {force_data[3]:8.4f} {force_data[4]:8.4f} {force_data[5]:8.4f}\n"
                 txt += f"Force Mag{np.linalg.norm(force_data[:3]):8.4f} N | Moment Mag:{np.linalg.norm(force_data[3:]):8.4f} Nm\n"
@@ -264,44 +256,37 @@ class ubo_gui(pycorc_gui):
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_M_live_stream_plots[i],force_data[3:],dim=3)
             self.update_response_label(self.corc_label,f"FPS:{fps}\nCORC Running Time:{corc_data[0]}s\n{txt}")
 
-        if hasattr(self, 'xsens_response') or self.init_args["rig"]:
-            if hasattr(self, 'xsens_response'):
-                # update rft info
-                timecode = self.xsens_response["timecode"]
-                fps = self.xsens_response["xsens_fps"]
-                right_list = self.xsens_response["right"]["list"]
-                left_list = self.xsens_response["left"]["list"]
-    
-                txt = f"XSENS Timecode:{timecode}\n"
-    
-                for i,key in  enumerate(['trunk_ie','trunk_aa','trunk_fe',
-                            'clav_dep_ev','clav_prot_ret',
-                            'shoulder_fe','shoulder_aa','shoulder_ie',
-                            'elbow_fe','elbow_ps','wrist_fe','wrist_dev']):
-                    txt += f"{key:15}: {left_list[i]:8.4f} {right_list[i]:8.4f}\n"
-                self.update_response_label(self.xsens_label,f"FPS:{fps}\n{txt}")
+        if hasattr(self, 'xsens_response'):
+            # update rft info
+            timecode = self.xsens_response["timecode"]
+            fps = self.xsens_response["xsens_fps"]
+            right_list = self.xsens_response["right"]["list"]
+            left_list = self.xsens_response["left"]["list"]
+
+            txt = f"XSENS Timecode:{timecode}\n"
+
+            for i,key in  enumerate(['trunk_ie','trunk_aa','trunk_fe',
+                        'clav_dep_ev','clav_prot_ret',
+                        'shoulder_fe','shoulder_aa','shoulder_ie',
+                        'elbow_fe','elbow_ps','wrist_fe','wrist_dev']):
+                txt += f"{key:15}: {left_list[i]:8.4f} {right_list[i]:8.4f}\n"
+            self.update_response_label(self.xsens_label,f"FPS:{fps}\n{txt}")
 
             if self.gui_args["on"] and self.gui_args["3d"]:
                 for side in ["right","left"]:
-                    if hasattr(self, 'xsens_response'):
-                        robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(self.xsens_response[side]["list"])
-                    else:
-                        robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(list(self.place_holder_angles.values()))
-                        
+                    robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(self.xsens_response[side]["list"])                        
                     self.update_line(self.skeleton[side]["body"],points=robot_joints.t)
                     
                     for i,(frame,force,pose) in enumerate(zip(self.skeleton[side]["ees"],self.skeleton[side]["forces"],robot_ee)):
                         self.update_frame(frame,pos=pose.t,rot=pose.R*0.1)
                         if i != 0 and side == "right" and hasattr(self, 'corc_response'):
                             j = i - 1
-                            offsets = [x * self.ft_grav[rft_key[j]] for x in [0,-1,0]]
-                            force_data = np.array(corc_data[1+j*6:1+j*6+6])+np.array(offsets+[0,0,0])
+                            offset2 = np.array(self.ft_install[rft_key[j]])-self.bias_response[j*6:j*6+6]
+                            force_data = np.array(corc_data[1+j*6:1+j*6+6])+np.array(offset2)
 
                             weight_comp = [x * self.ft_grav[rft_key[j]] for x in [0,0,-1]]
                             force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
-
                             self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,force_data[:3])*0.02]))
-            
         if hasattr(self, 'logger_response'):
             print_text = self.logger_response["print_text"]
             fps = self.logger_response["logger_fps"]
@@ -338,19 +323,18 @@ if __name__ == "__main__":
                "init_flags":{"corc":{"on":True,
                                      "ip":"127.0.0.1",
                                      "port":2048},
-                            "xsens":{"on":False,
+                            "xsens":{"on":True,
                                      "ip":"0.0.0.0",
                                      "port":9764},
                              "gui":{"on":True,
                                     "freq":30,
                                     "3d":True,
-                                    "force":True},
+                                    "force":False},
                              "log":{"on":True}
                              },
-                "rig":True,
                 "session_data":{
                     "take_num":0,
-                    "subject_id":"exp1/p1/JQ",
+                    "subject_id":"exp1/p1/ying2",
                     "task_id":"task_1/var_1"
                 }
                }
