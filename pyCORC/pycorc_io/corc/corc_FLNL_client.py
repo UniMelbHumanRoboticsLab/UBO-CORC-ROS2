@@ -27,6 +27,7 @@ class corc_FLNL_client(QObject):
         super().__init__()
         self.port = port
         self.ip = ip
+        self.error = [0 for i in range(19)]
         
         # FPS Calculator
         self.corc_timer = QElapsedTimer() # use the system clock
@@ -49,22 +50,24 @@ class corc_FLNL_client(QObject):
         print("CORC Connecting")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        # self.socket.settimeout(5.)
+        self.socket.settimeout(1)
         server_address = (self.ip, self.port)
 
         # Connection
         print('CORC FLNLClient: connecting to ('+self.ip+':'+str(self.port)+')...')
         try:
             self.socket.connect(server_address)
+            self.sampling = 0
+            print('CORC FLNLClient: Client connected!')
+            self.connection = self.socket
+            self.Connected = True
         except Exception as e:
             print('UBO FLNLClient: Connection failed! (', e, ')')
             self.Connected = False
             self.socket.close()
-            return self.Connected
-        
-        print('CORC FLNLClient: Client connected!')
-        self.connection = self.socket
-        self.Connected = True
+            self.sampling = 10
+            
+        return self.Connected
 
     """
     CORC FLNL Function and Callback
@@ -137,15 +140,8 @@ class corc_FLNL_client(QObject):
                     self.ProcessRcvValues(data[2:2+8*nbvals], nbvals)
                     if nbvals>0:
                         self.newValsRcv = True
-        except BlockingIOError:
-            print("IO Error")
-        except (BrokenPipeError, ConnectionResetError):
-            print("Connection Error")
-            self.Connected=False
-            self.receiving=False
-            return False
         except Exception as e:
-            print(f"Other Error: {e}")
+            # print(f"Other Error: {e}")
             self.CmdRcv = "???"
             self.ValsRcv=[]
 
@@ -167,13 +163,13 @@ class corc_FLNL_client(QObject):
                 }
             else:
                 data = {
-                    "raw_data":[],
+                    "raw_data":self.error,
                     "corc_fps":self.corc_fps,
                 }
             self.data_ready.emit(data)
         except Exception as e:
             data = {
-                "raw_data":[],
+                "raw_data":self.error,
                 "corc_fps":self.corc_fps,
             }
             self.data_ready.emit(data)
@@ -185,7 +181,7 @@ class corc_FLNL_client(QObject):
         self.poll_timer = QTimer()
         self.poll_timer.setTimerType(Qt.PreciseTimer)
         self.poll_timer.timeout.connect(self.read_corc_data)
-        self.poll_timer.start()
+        self.poll_timer.start(self.sampling)
         self.SendCmd("REC")
     
     """
@@ -194,8 +190,8 @@ class corc_FLNL_client(QObject):
     @Slot()
     def stop(self):
         self.SendCmd("STP")
-        # print()
-        self.connection.close()
+        if self.Connected:
+            self.connection.close()
         self.poll_timer.stop()
         self.stopped.emit()
         

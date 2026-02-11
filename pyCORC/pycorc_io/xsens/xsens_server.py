@@ -30,6 +30,20 @@ joint_keys = [
     'wrist_fe',
     'wrist_dev'
 ]
+place_holder_angles = {
+    'trunk_ie':0,
+    'trunk_aa':0,
+    'trunk_fe':0,
+    'clav_dep_ev':0,
+    'clav_prot_ret':0,
+    'shoulder_fe':90,
+    'shoulder_aa':0,
+    'shoulder_ie':90,
+    'elbow_fe':0,
+    'elbow_ps':90,
+    'wrist_fe':0,
+    'wrist_dev':0
+}
 
 class xsens_server(QObject):
     data_ready = Signal(dict)
@@ -60,24 +74,24 @@ class xsens_server(QObject):
         self.server_socket = socket.socket(socket.AF_INET, # Internet
                             socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow immediate reuse of the port
-
+        self.server_socket.settimeout(1)
         # Connection
         print('XSENServer: connecting to ('+self.ip+':'+str(self.port)+')...')
         try:
             self.server_socket.bind((self.ip, self.port))
             self.server_socket.listen()
             self.server_conn,addr = self.server_socket.accept()
+            print('XSENS: Server connected!')
+            self.Connected = True
+            self.sampling = 0
             # self.server_socket.setblocking(True)
             # print(self.server_socket.getblocking())
         except Exception as e:
             print('XSENS: Connection failed! (', e, ')')
             self.Connected = False
             self.server_socket.close()
-            return self.Connected
-        
-        print('XSENS: Server connected!')
-        self.connection = self.server_conn
-        self.Connected = True
+            self.sampling = 10
+        return self.Connected
 
     def get_latest(self):
         try:
@@ -86,56 +100,44 @@ class xsens_server(QObject):
             right,left = parse_UL_joint_angle(raw_message[24:584])
 
             self.right=right
-            
             self.left=left
             self.timecode = timecode
             self.Connected=True
             # print("WHERE THE HELL")
-        except BlockingIOError:
-            print("IO Error")
-        except (BrokenPipeError, ConnectionResetError):
-            print("Connection Error")
-            self.Connected=False
-            return False
         except Exception as e:
-            print(f"Other Error: {e}")
+            # print(f"Error: {e}")
+            self.right={"dict":place_holder_angles,"list":list(place_holder_angles.values())}
+            self.left={"dict":place_holder_angles,"list":list(place_holder_angles.values())}
+            self.timecode = "ERROR TIME"
+
 
     def read_xsens_data(self):
-        try:
-            # update FPS
-            self.xsens_frame_count += 1
-            self.xsens_cur_time = self.xsens_timer.elapsed()
-            if self.xsens_cur_time-self.xsens_last_time >= 500:
-                self.xsens_fps = self.xsens_frame_count * 1000 / (self.xsens_cur_time-self.xsens_last_time)
-                self.xsens_last_time = self.xsens_cur_time
-                self.xsens_frame_count = 0
+        # update FPS
+        self.xsens_frame_count += 1
+        self.xsens_cur_time = self.xsens_timer.elapsed()
+        if self.xsens_cur_time-self.xsens_last_time >= 500:
+            self.xsens_fps = self.xsens_frame_count * 1000 / (self.xsens_cur_time-self.xsens_last_time)
+            self.xsens_last_time = self.xsens_cur_time
+            self.xsens_frame_count = 0
 
-            self.get_latest()
-            if(self.right and self.left and self.Connected):
-                data = {
-                    "timecode":self.timecode,
-                    "xsens_fps":self.xsens_fps,
-                    "right":self.right,
-                    "left":self.left,
-                }
-            else:
-                data = {
-                    "timecode":"",
-                    "xsens_fps":self.xsens_fps,
-                    "right":{},
-                    "left":{},
-                    
-                }
-            self.data_ready.emit(data)
-        except Exception as e:
+        self.get_latest()
+        if(self.right and self.left and self.Connected):
+            data = {
+                "timecode":self.timecode,
+                "xsens_fps":self.xsens_fps,
+                "right":self.right,
+                "left":self.left,
+            }
+        else:
             data = {
                 "timecode":"",
-                "right":{},
-                "left":{},
                 "xsens_fps":self.xsens_fps,
+                "right":self.right,
+                "left":self.left,
+                
             }
-            # print(e)
-            self.data_ready.emit(data)
+        self.data_ready.emit(data)
+
     """
     Initialization Callback
     """
@@ -144,14 +146,16 @@ class xsens_server(QObject):
         self.poll_timer = QTimer()
         self.poll_timer.setTimerType(Qt.PreciseTimer)
         self.poll_timer.timeout.connect(self.read_xsens_data)
-        self.poll_timer.start()
+        self.poll_timer.start(self.sampling)
     
     """
     External Signals Callback
     """
     @Slot()
     def stop(self):
-        self.connection.close()
+        if self.Connected:
+            self.server_conn.close()
+            self.server_socket.close()
         self.poll_timer.stop()
         self.stopped.emit()
         
