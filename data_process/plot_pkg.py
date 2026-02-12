@@ -66,6 +66,11 @@ def compare_multi_dim_data(x_list:list,data_list:list,
         dim_labels = [f"{datatype}_{i}" for i in ["FX","FY","FZ","MX","MY","MZ"]]
     elif dim == 18:
         dim_labels = [f"rft{j}_{datatype}_{i}" for j in range(3) for i in ["FX","FY","FZ","MX","MY","MZ"]]
+    elif dim == 12:
+        dim_labels = [f"{datatype}_{i}" for i in ['trunk_ie','trunk_aa','trunk_fe',
+                        'clav_dep_ev','clav_prot_ret',
+                        'shoulder_fe','shoulder_aa','shoulder_ie',
+                        'elbow_fe','elbow_ps','wrist_fe','wrist_dev']]
     else:
         dim_labels = [f"{datatype}_{i}" for i in ['trunk_ie','trunk_aa','trunk_fe',
                         'clav_dep_ev','clav_prot_ret',
@@ -86,8 +91,11 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             (-10, 170), # elbow fe
             (-10, 190) # elbow ps
         ]
-    elif len(data_list) > 0:
+    elif len(data_list) == 1:
         temp_arr = np.array(data_list)
+        limits = [np.min(temp_arr),np.max(temp_arr)]
+    else:
+        temp_arr = data_list[0]
         limits = [np.min(temp_arr),np.max(temp_arr)]
 
     for i in range(dim):

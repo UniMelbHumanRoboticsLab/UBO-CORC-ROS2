@@ -124,16 +124,16 @@ def lpf(time_array,data,ts=0.01,fc=50,datatype="trajectory",plot_results=False):
             semilogx=True,
             fig_label=f'FFT_{datatype}'
         )
-        compare_multi_dim_data(
-            [w],
-            [db_arr],
-            dim,
-            ['FreqResp'],
-            'Frequency (Hz)',
-            f'Frequency Response {datatype}',
-            semilogx=True,
-            fig_label=f'FreqResp_{datatype}'
-        )
+        # compare_multi_dim_data(
+        #     [w],
+        #     [db_arr],
+        #     dim,
+        #     ['FreqResp'],
+        #     'Frequency (Hz)',
+        #     f'Frequency Response {datatype}',
+        #     semilogx=True,
+        #     fig_label=f'FreqResp_{datatype}'
+        # )
         compare_multi_dim_data(
             [time_array,time_array],
             [data, filtered_data],
@@ -249,3 +249,8 @@ def rescale(t_old, data,t_new,datatype="trajectory",plot_results=False):
             fig_label=f'rescale_{datatype}'    
         )
     return data_interp
+
+""" create directory if needed"""
+def create_dir(data_path):
+    if not os.path.isdir(data_path):
+        os.makedirs(data_path)
