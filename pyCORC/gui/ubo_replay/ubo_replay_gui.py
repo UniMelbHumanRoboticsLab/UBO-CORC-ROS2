@@ -1,5 +1,8 @@
 print("Importing Paths")
 import os, sys,json
+for mod in [m for m in sys.modules if 'PyQt5' in m]:
+    del sys.modules[mod]
+    
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 import numpy as np
@@ -48,14 +51,19 @@ class ubo_replay_gui(pycorc_gui):
                             'wrist_fe':0,
                             'wrist_dev':0
                         }
+        self.body_params_rbt,self.ft_grav,self.ft_install = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}'))
+        
+        for dict_type,param_dict in zip(["BODY PARAMS","FT_GRAV","FT_INSTALL"],[self.body_params_rbt,self.ft_grav,self.ft_install]):
+            print()
+            print(dict_type)
+            for (key,value) in param_dict.items():
+                print(f"{key}:{value}")
+        print()
         
         super().__init__(freq=self.gui_args["freq"],gui_3d=self.gui_args["3d"])
 
         if self.gui_args["force"]:
             self.ubo_wrenches_live_stream = self.init_live_stream(num_columns=2)
-
-        self.body_params_rbt,self.ft_grav = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}'))
-        print(self.body_params_rbt,self.ft_grav)
 
         """
         Initilization
@@ -202,14 +210,7 @@ class ubo_replay_gui(pycorc_gui):
                 robot_joints, robot_ee = self.skeleton["right"]["ub_xsens"].ub_fkine(list(self.place_holder_angles.values()))
 
             for i in range(NUM_RFT):
-                offsets = [x * self.ft_grav[rft_key[i]] for x in [0,-1,0]]
-                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(offsets+[0,0,0])
-                
-                # weight compensate with skeleton config
-                pose = robot_ee[i + 1]
-                weight_comp = [x * self.ft_grav[rft_key[i]] for x in [0,0,-1]]
-                force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
-
+                force_data = np.array(corc_data[1+i*6:1+i*6+6])
                 txt += f"UBO_{i} Force(N): {force_data[0]:8.4f} {force_data[1]:8.4f} {force_data[2]:8.4f} | Moment(Nm): {force_data[3]:8.4f} {force_data[4]:8.4f} {force_data[5]:8.4f}\n"
                 txt += f"Force Mag{np.linalg.norm(force_data[:3]):8.4f} N | Moment Mag:{np.linalg.norm(force_data[3:]):8.4f} Nm\n"
 
@@ -217,7 +218,7 @@ class ubo_replay_gui(pycorc_gui):
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_F_live_stream_plots[i],force_data,dim=3)
                     self.update_live_stream_plot(self.ubo_wrenches_live_stream,self.ubo_M_live_stream_plots[i],force_data[3:],dim=3)
             self.update_response_label(self.corc_label,f"CORC Running Time:{corc_data[0]}s\n{txt}")
-        if hasattr(self, 'xsens_response') or self.init_args["rig"]:
+        if hasattr(self, 'xsens_response'):
             if hasattr(self, 'xsens_response'):
                 # update rft info
                 right_list = self.xsens_response["right"]
@@ -226,7 +227,7 @@ class ubo_replay_gui(pycorc_gui):
                 f = ""
                 p = "left"
                 g = "right"
-                txt = f"{f:15}: {p:8} {g:8}\n"
+                txt = f"{self.xsens_response['timecode']}\n{f:15}: {p:8} {g:8}\n"
 
                 for i,key in  enumerate(['trunk_ie','trunk_aa','trunk_fe',
                             'clav_dep_ev','clav_prot_ret',
@@ -243,16 +244,11 @@ class ubo_replay_gui(pycorc_gui):
                         robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(list(self.place_holder_angles.values()))
                         
                     self.update_line(self.skeleton[side]["body"],points=robot_joints.t)
-                    
                     for i,(frame,force,pose) in enumerate(zip(self.skeleton[side]["ees"],self.skeleton[side]["forces"],robot_ee)):
                         self.update_frame(frame,pos=pose.t,rot=pose.R*0.1)
                         if i != 0 and side == "right" and hasattr(self, 'corc_response'):
                             j = i - 1
-                            offsets = [x * self.ft_grav[rft_key[j]] for x in [0,-1,0]]
-                            force_data = np.array(corc_data[1+j*6:1+j*6+6])+np.array(offsets+[0,0,0])
-
-                            weight_comp = [x * self.ft_grav[rft_key[j]] for x in [0,0,-1]]
-                            force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
+                            force_data = np.array(corc_data[1+j*6:1+j*6+6])
 
                             self.update_line(force,points=np.vstack([pose.t, pose.t + np.matmul(pose.R,force_data[:3])*0.02]))
         if hasattr(self, 'replayer_response'):
@@ -284,6 +280,7 @@ if __name__ == "__main__":
     try:
         argv = sys.argv[1]
     except:
+        var = 6
         argv ={
                "init_flags":{"corc" :{"on":True},
                             "xsens" :{"on":True},
@@ -294,11 +291,10 @@ if __name__ == "__main__":
                                     "force":False},
                             "replay":{"on":True}
                              },
-                "rig":False,
                 "session_data":{
                     "take_num":1,
-                    "subject_id":"exp1/p1/vincent",
-                    "task_id":"task_1/var_1"
+                    "subject_id":"exp1/p1/ying",
+                    "task_id":f"task_1/var_{var}"
                 }
                }
         
@@ -310,10 +306,10 @@ if __name__ == "__main__":
     w.setWindowTitle(f"UBO-CORC-{init_args['session_data']['subject_id']}/{init_args['session_data']['task_id']}")
     w.show()
 
-    import psutil
-    # p = psutil.Process(os.getpid())
-    # p.nice(psutil.REALTIME_PRIORITY_CLASS)  # or REALTIME_PRIORITY_CLASS
-    sys.exit(app.exec())
-
+    app.exec()
+    app.quit()
+    import shiboken6
+    shiboken6.delete(app)  # Immediate deletion
+    sys.exit()
 
     # 169.254.45.31
