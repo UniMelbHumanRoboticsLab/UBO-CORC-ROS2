@@ -1,5 +1,8 @@
 print("Importing Paths")
 import os, sys,json
+for mod in [m for m in sys.modules if 'PyQt5' in m]:
+    del sys.modules[mod]
+    
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 import numpy as np
@@ -231,10 +234,11 @@ if __name__ == "__main__":
     w.setWindowTitle(f"UBO-CORC-{init_args['session_data']['subject_id']}/calibration")
     w.show()
 
-    # import psutil
-    # p = psutil.Process(os.getpid())
-    # p.nice(psutil.REALTIME_PRIORITY_CLASS)  # or REALTIME_PRIORITY_CLASS
-    sys.exit(app.exec())
+    app.exec()
+    app.quit()
+    import shiboken6
+    shiboken6.delete(app)  # Immediate deletion
+    sys.exit()
 
 
     # 169.254.45.31

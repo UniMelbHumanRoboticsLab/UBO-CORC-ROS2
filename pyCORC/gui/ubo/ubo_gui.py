@@ -1,5 +1,8 @@
 print("Importing Paths")
 import os, sys,json
+for mod in [m for m in sys.modules if 'PyQt5' in m]:
+    del sys.modules[mod]
+    
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 import numpy as np
@@ -20,7 +23,7 @@ from pycorc_io.package_utils.unpack_json import get_subject_params
 print("Importing PySide6")
 from PySide6 import QtWidgets
 from PySide6.QtGui import QShortcut
-from PySide6.QtCore import QThread,Qt,QMetaObject,Slot
+from PySide6.QtCore import QThread,Qt,QMetaObject,Slot,Qt
 
 NUM_RFT = 3
 rft_key = ["clav","ua","fa"]
@@ -347,10 +350,11 @@ if __name__ == "__main__":
     w.setWindowTitle(f"UBO-CORC-{init_args['session_data']['subject_id']}/{init_args['session_data']['task_id']}")
     w.show()
 
-    # import psutil
-    # p = psutil.Process(os.getpid())
-    # p.nice(psutil.REALTIME_PRIORITY_CLASS)  # or REALTIME_PRIORITY_CLASS
-    sys.exit(app.exec())
+    app.exec()
+    app.quit()
+    import shiboken6
+    shiboken6.delete(app)  # Immediate deletion
+    sys.exit()
 
 
     # 169.254.45.31
