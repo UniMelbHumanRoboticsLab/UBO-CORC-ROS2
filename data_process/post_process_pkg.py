@@ -1,7 +1,9 @@
-import os
+import os,sys
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+
+sys.path.append(os.path.join(os.path.dirname(__file__)))
 from plot_pkg import compare_multi_dim_data,plot_3d_submovements
 from scipy.interpolate import CubicSpline
 
@@ -254,3 +256,8 @@ def rescale(t_old, data,t_new,datatype="trajectory",plot_results=False):
 def create_dir(data_path):
     if not os.path.isdir(data_path):
         os.makedirs(data_path)
+
+""" split all variations / repetitions into a list of variations of a list of repetitions"""
+def split_reps(data_list:list=[],n=4):
+	result = [data_list[i:i+n] for i in range(0, len(data_list), n)]
+	return result
