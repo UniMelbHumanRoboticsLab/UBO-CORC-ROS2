@@ -4,58 +4,126 @@ import numpy as np
 import sys,os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-import data_analyse.metrics_pkg 
+import data_analyse.metrics_pkg
+
+""" split all variations / repetitions into a list of variations of a list of repetitions"""
+def split_reps(data_list:list=[],n=4):
+	result = [data_list[i:i+n] for i in range(0, len(data_list), n)]
+	return result
 
 """ get muliti color """
-def get_n_colors(n_colors:int):
-    cmap = plt.colormaps['tab10']
-    colors = [cmap(i / (n_colors)) for i in range(n_colors)]
+def get_n_colors(n_colors:int,split=4):
+    cmap = plt.colormaps['Set1']
+    # If n_colors is a multiple of split, get n/split colors and repeat each split times
+    if n_colors > 0 and n_colors % split == 0 and n_colors/4 > 1:
+        base_n = n_colors // split
+        base_colors = [cmap(i / base_n) for i in range(base_n)]
+        colors = [color for color in base_colors for _ in range(split)]
+    else:
+        colors = [cmap(i / (n_colors)) for i in range(n_colors)]
     return colors
 
-""" plot confidence interval and mean for n-lists list (each element in the list is a list of  2d arrays)"""
-def plot_mean_ci(x:np.ndarray, data_list:list, fig=None,axs=None,labels:str="",relimit=False):
-
-    # reinitilize the limits if needed
-    # if relimit:
-    #     temp_arr = np.array(data_list)
-    #     limits = [np.min(temp_arr),np.max(temp_arr)]
-    #     for i, ax in enumerate(axs):
-    #         axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
-
-    colors = get_n_colors(len(data_list))
-    for data,color,label in zip(data_list,colors,labels):
-        mean = np.mean(np.array(data), axis=0)
-        std = np.std(np.array(data), axis=0, ddof=1)  # ddof=1 for sample std
-        n = np.array(data).shape[0]  # number of repetitions
-
-        # 95% CI using t-distribution
-        sem = std / np.sqrt(n)  # standard error of mean
-        from scipy import stats
-        t_crit = stats.t.ppf(0.975, df=n-1)  # ~4.303 for n=3
-        ci_95 = t_crit * sem
-
-        lower = mean - ci_95
-        upper = mean + ci_95
-        for i, ax in enumerate(axs):
-            ax.plot(x, mean[:, i], ls='-',color=color, label=f"mean {label}", alpha=0.7, linewidth=3)
-            # Plot 95% CI band
-            ax.fill_between(x, lower[:, i], upper[:, i], 
-                            alpha=0.3, color=color, label=f'95% CI {label}')
-        # ax.legend()
-        # place legend outside the plot
+""" hide / show plot interactively (click to hide/show) """
+def interactive_plot(fig, axs):
     handles, labels = axs[0].get_legend_handles_labels()
-    fig.legend(handles, labels,loc='lower right', ncol=2, draggable=True)
+    leg = fig.legend(handles, labels, loc='lower right', ncol=4, draggable=True)
+    
+    # Map legend handles to original artists across all axes
+    lined = {}
+    for leghandle, label in zip(leg.legend_handles, labels):
+        leghandle.set_picker(5)  # Works for both Line2D and Patch objects
+        lined[leghandle] = []
+        for ax in axs:
+            # Check lines
+            for line in ax.get_lines():
+                if line.get_label() == label:
+                    lined[leghandle].append(line)
+            # Check patches (e.g., bar plots)
+            for patch in ax.patches:
+                if patch.get_label() == label:
+                    lined[leghandle].append(patch)
+            # Check collections (e.g., fill_between creates PolyCollection)
+            for coll in ax.collections:
+                if coll.get_label() == label:
+                    lined[leghandle].append(coll)
+    
+    def on_pick(event):
+        legline = event.artist
+        if legline in lined:
+            origlines = lined[legline]
+            vis = not origlines[0].get_visible() if origlines else True
+            for origline in origlines:
+                origline.set_visible(vis)
+            legline.set_alpha(1.0 if vis else 0.2)
+            fig.canvas.draw()
+    
+    def on_click(event):
+        # Right-click (button 3) to hide all
+        if event.button == 3:
+            for leghandle, origlines in lined.items():
+                for origline in origlines:
+                    origline.set_visible(False)
+                leghandle.set_alpha(0.2)
+            fig.canvas.draw()
+    
+    def on_resize(event):
+        fig.tight_layout()
+        fig.canvas.draw()
+    
+    fig.canvas.mpl_connect('pick_event', on_pick)
+    fig.canvas.mpl_connect('button_press_event', on_click)
+    fig.canvas.mpl_connect('resize_event', on_resize)
+    return leg
+
+""" plot confidence interval with mean and std for n-lists list (each element in the list is a list of  2d arrays)"""
+def plot_mean_ci(x:np.ndarray, data_list:list, fig=None,axs=None,labels:list=[],legend=True,relimit=False,dist="gaussian",split=4):
+
+    colors = get_n_colors(len(data_list),split)
+    for data,color,label in zip(data_list,colors,labels):
+        if dist == "gaussian":
+            mean = np.mean(np.array(data), axis=0)
+            std = np.std(np.array(data), axis=0, ddof=0)  # ddof=1 for sample std
+            n = np.array(data).shape[0]  # number of repetitions
+
+            # 95% CI using t-distribution
+            sem = std / np.sqrt(n)  # standard error of mean
+            from scipy import stats
+            t_crit = stats.t.ppf(0.975, df=n-1) 
+            ci_95 = 1.96 * sem
+
+            lower = mean - ci_95
+            upper = mean + ci_95
+            for i, ax in enumerate(axs):
+                ax.plot(x, mean[:, i], ls='-',color=color, label=f"mean {label}", alpha=0.7, linewidth=3)
+                # Plot 95% CI band
+                ax.fill_between(x, lower[:, i], upper[:, i], 
+                                alpha=0.3, color=color, label=f'95% CI {label}')
+        else:
+            # print("iqr")
+            Q1 = np.percentile(np.array(data), 25,axis=0)  # 25th percentile
+            Q2 = np.percentile(np.array(data), 50,axis=0)  # Median (50th percentile)
+            Q3 = np.percentile(np.array(data), 75,axis=0)  # 75th percentile
+
+            for i, ax in enumerate(axs):
+                ax.plot(x, Q2[:, i], ls='-',color=color, label=f"mean {label}", alpha=0.7, linewidth=3)
+                # Plot 95% CI band
+                ax.fill_between(x, Q1[:, i], Q3[:, i], 
+                                alpha=0.3, color=color, label=f'95% CI {label}')
+    if legend:
+        handles, labels = axs[0].get_legend_handles_labels()
+        fig.legend(handles, labels,loc='lower right', ncol=4, draggable=True)
 
 """compare multi dim data function individually from multiple sources"""
 def compare_multi_dim_data(x_list:list,data_list:list,
                            dim:int,labels:list,xtype:str,datatype:str,
-                           sharex:bool=True,semilogx:bool=False,
+                           split=4,
+                           sharex:bool=True,semilogx:bool=False,legend:bool=True,
                            fig_label:str="Take1",
                            show_stats:bool=False,show_zero_cross:bool=False):
     # init fig, axes
     fig = plt.figure(figsize=(15, 5),num=fig_label,tight_layout=True)
     axs = []
-    colors = get_n_colors(len(x_list))
+    colors = get_n_colors(len(x_list),split)
 
     # adjust the dimension labels for specific dimensions
     if dim == 1:
@@ -89,14 +157,15 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             (-40, 180), # shoulder aa
             (-45, 90), # shoulder ie
             (-10, 170), # elbow fe
-            (-10, 190) # elbow ps
+            (-30, 190) # elbow ps
         ]
     elif len(data_list) == 1:
         temp_arr = np.array(data_list)
         limits = [np.min(temp_arr),np.max(temp_arr)]
-    else:
-        temp_arr = data_list[0]
+    elif len(data_list) > 1:
+        temp_arr = np.array(data_list)
         limits = [np.min(temp_arr),np.max(temp_arr)]
+
 
     for i in range(dim):
         if dim >= 3:
@@ -116,10 +185,6 @@ def compare_multi_dim_data(x_list:list,data_list:list,
         axs[i].set_ylabel(f'{dim_labels[i]}')
         axs[i].set_title(f'{dim_labels[i]} vs {xtype}')
         axs[i].grid(True)
-
-    # plot stats
-    if show_stats:
-        plot_mean_ci(x_list[0], [data_list], fig=fig,axs=axs)
             
     # plot actual data
     for i,(x_array_i,data_array_i,label,color) in enumerate(zip(x_list, data_list, labels, colors)):
@@ -136,14 +201,19 @@ def compare_multi_dim_data(x_list:list,data_list:list,
                 ax.semilogx(x_array_i[:, j], data_array_i[:, j], ls='-',color=color, label=label, alpha=alpha, linewidth=linewidth)
             else:
                 ax.plot(x_array_i[:, j], data_array_i[:, j], ls='-',color=color, label=label, alpha=alpha, linewidth=linewidth)
+    
+    # plot stats
+    if show_stats:
+        plot_mean_ci(x_list[0],[data_list], fig=fig,axs=axs,labels=["data"],legend=False,dist="iqr")
 
     # sanity check for zero crossings cuz why not
     for j,ax in enumerate(axs):
         if show_zero_cross:
             plot_velocity_zero_crossings(x_array_i[:, j], data_array_i[:, j], ax)
-
-    handles, labels = axs[0].get_legend_handles_labels()
-    fig.legend(handles, labels,loc='lower right', ncol=4)
+    
+    if legend:
+        handles, labels = axs[0].get_legend_handles_labels()
+        fig.legend(handles, labels,loc='lower right', ncol=4, draggable=True)
 
     plt.tight_layout()
     return fig,axs
@@ -230,6 +300,7 @@ def plot_3d_submovements(traj,sbmvmt_indices):
     ax.legend()
     plt.tight_layout()
 
+""" plot zero velocity crossings for 1D velocity data"""
 def plot_velocity_zero_crossings(time, velocity, ax):
     """ find zero crossing points in 1D velocity data and return their indices and times"""
     def find_zero_velocity_crossings(velocity: np.ndarray, time: np.ndarray = None):
@@ -268,3 +339,36 @@ def plot_velocity_zero_crossings(time, velocity, ax):
     
     for t_cross in times:
         ax.axvline(t_cross, color='red', linestyle='-', alpha=0.7)
+
+def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_type="tau",fig_label="Train"):
+    # isolate each variation
+    unique_var_id = []
+    for x in var_id_list:
+        if x in unique_var_id:
+            continue
+        else:
+            unique_var_id.append(f"{x}")
+    data_list_sep_var = split_reps(data_list,rep_split)
+    # plot gt's mean and ci for each var
+    fig,ax = compare_multi_dim_data(
+        x_list=time_list,
+        data_list=data_list,
+        dim=data_list[0].shape[1],
+        labels=label_list,
+        xtype="time",
+        datatype=data_type,
+        fig_label=f"{fig_label}",
+        legend=False,
+        split=rep_split
+    )
+    plot_mean_ci(
+        time_list[0],
+        data_list_sep_var,
+        fig=fig,
+        axs=ax,
+        labels=[f"{fig_label} {x}" for x in unique_var_id],
+        relimit=True,
+        split=rep_split
+    )
+    interactive_plot(fig,ax)
+    return data_list_sep_var,unique_var_id
