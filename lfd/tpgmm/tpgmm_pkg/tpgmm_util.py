@@ -8,8 +8,7 @@ import pickle
 
 def get_optim_nbGauss(data):
     from sklearn.mixture import GaussianMixture as GMM_sk
-    from gmr.utils import check_random_state
-    random_state = check_random_state(0)
+    from sklearn.model_selection import KFold
     from sklearn.model_selection import GridSearchCV
     import seaborn as sns
     import pandas as pd
@@ -41,24 +40,26 @@ def get_optim_nbGauss(data):
 
     while n_components <= 100:
         grid_search = GridSearchCV(
-            # GMM_sk(random_state=random_state,init_params='k-means++',warm_start=True), param_grid=param_grid, scoring=gmm_bic_score,verbose=3,n_jobs=1
-            GMM_sk(init_params='k-means++',warm_start=True), param_grid=param_grid, scoring=gmm_bic_score,verbose=3,n_jobs=-1)
+            GMM_sk(init_params='k-means++',warm_start=True,max_iter=200), 
+            param_grid=param_grid, scoring=gmm_bic_score,
+            verbose=3,n_jobs=-1,
+            cv = KFold(n_splits=5, shuffle=True))
         grid_search.fit(data_scaled)
-        optim_n_gauss = grid_search.best_params_['n_components']
 
+        optim_n_gauss = grid_search.best_params_['n_components']
         grid_search_df = pd.DataFrame(grid_search.cv_results_)[
             ["param_n_components", "param_covariance_type", "mean_test_score"]
         ]
         all_results_df = pd.concat([all_results_df, grid_search_df], ignore_index=True)
 
-        if optim_n_gauss < n_components-4:
+        if optim_n_gauss < n_components-3:
             print(f"\n\nSelected GMM (scaled): {grid_search.best_params_['covariance_type']} model, {optim_n_gauss} components")
             break
         else:
             n_components += 5
-            print(f"\n{optim_n_gauss} is too close to the limit. Reoptimizing to {n_components} n_components")
+            print(f"\n{optim_n_gauss} is too close to the limit. Reoptimizing from {optim_n_gauss-3} to {n_components} n_components")
             param_grid = {
-                "n_components": range(optim_n_gauss, n_components+1),
+                "n_components": range(optim_n_gauss-3, n_components+1),
                 "covariance_type": ["full"],
             }
 
