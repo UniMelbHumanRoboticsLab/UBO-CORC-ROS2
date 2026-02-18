@@ -36,6 +36,7 @@ class ubo_replayer(QObject):
         self.total_frames = 1000
 
         print("UBO Replayer Started")
+        self.read_logged_data()
     def read_logged_data(self):
         # read logged data
         self.data = pd.read_csv(f"{self.subject_path}/raw/UBORecord{self.take_num}Log.csv")
@@ -65,7 +66,7 @@ class ubo_replayer(QObject):
         corc_data = self.corc_data[self.frame_id,:]
         right = self.right_xsens_data[self.frame_id,:]
         left = self.left_xsens_data[self.frame_id,:]
-        robot_joints, robot_ee = self.skeleton.ub_fkine(right)
+        robot_ee = self.skeleton.fkine(right)
 
         processed = [0]
         for i in range(NUM_RFT):
@@ -119,7 +120,7 @@ class ubo_replayer(QObject):
     """
     @Slot()
     def start_take(self):
-        self.read_logged_data()
+        
         
         self.poll_timer = QTimer()
         self.poll_timer.setTimerType(Qt.PreciseTimer)

@@ -129,7 +129,7 @@ class ubo_replay_gui(pycorc_gui):
             stop_log = QShortcut("C", self)
             stop_log.activated.connect(self.replayer_worker.stop_take)
             # to go to next take logging
-            next_log = QShortcut("N", self)
+            next_log = QShortcut("Enter", self)
             next_log.activated.connect(self.replayer_worker.next_take)
             
         close = QShortcut("Q", self)

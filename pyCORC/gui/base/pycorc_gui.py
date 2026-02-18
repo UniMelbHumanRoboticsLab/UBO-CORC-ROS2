@@ -32,7 +32,7 @@ def debug_break():
     import debugpy
     debugpy.breakpoint()
     
-N_buffer = 50
+N_buffer = 300
 # Disable mouse wheel zooming in plots for pyqtgraph
 class NoWheelViewBox(pg.ViewBox):
     def __init__(self):
