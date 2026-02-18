@@ -4,10 +4,9 @@ import time as times
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 from data_process.csv_pkg import compile_train_val_test_data
-from data_process.post_process_pkg import split_reps
 
-from tpgmm_pkg.TPGMM import *
-from tpgmm_pkg.tpgmm_util import arrange_data,get_optim_nbGauss,save_results
+from tpgmm_pkg.TPGMM import TPGMM
+from tpgmm_pkg.tpgmm_util import arrange_data,get_optim_nbGauss#,save_results
 import matplotlib.pyplot as plt
 np.set_printoptions(suppress=True,precision=4) # suppress scientific notation
 

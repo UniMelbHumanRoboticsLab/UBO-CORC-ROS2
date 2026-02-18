@@ -6,7 +6,6 @@ realmax  = np.finfo(np.float64).max
 
 import sys,os
 sys.path.append(os.path.join(os.path.dirname(__file__)))
-from tpgmm_util import *
 from tpgmm_objects import Sample,TaskParams
 
 """
