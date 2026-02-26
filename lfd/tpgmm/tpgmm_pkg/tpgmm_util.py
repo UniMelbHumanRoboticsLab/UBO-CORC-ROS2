@@ -154,15 +154,22 @@ def plotPegs_n_Traj(num_of_frames,sampleParam,expected_data,ax):
 """
 save results for future comparison
 """
-def save_results(time,actual_data,repro_data,filename):
-    q = ['trunk_ie','trunk_aa','trunk_fe',
-		'clav_dep_ev','clav_prot_ret',
-		'shoulder_fe','shoulder_aa','shoulder_ie',
-		'elbow_fe','elbow_ps']
-    tau_repro = [f"tau_{joint}_repro" for joint in q]
-    tau = [f"tau_{joint}_gt" for joint in q]
-    
-    import pandas as pd
-    df = pd.DataFrame(np.hstack((time[:,np.newaxis],actual_data,repro_data)),columns=["norm_time"]+tau+tau_repro)
-    df.to_csv(filename,index=False)
+def save_results(subject_id,time_list,gt_list,recon_list,train_mean_per_var,id_list,filename):
+    compile_data = []
+    # save the results as follows (time,GT,recon,comparator,sample id)
+    for time,gt,recon,comparator,sample_id in zip(time_list,gt_list,recon_list,train_mean_per_var,id_list):
+        sample_id = sample_id.split(".")
+        compile_data.append(
+            {
+                "subject_id":subject_id,
+                "time":time,
+                "thera":gt,
+                "recon":recon,
+                "compare":comparator,
+                "var":sample_id[0],
+                "id":sample_id[1],
+                "case":sample_id[2]                
+                }
+            )
+    np.save(filename, np.array(compile_data,dtype=dict))
 
