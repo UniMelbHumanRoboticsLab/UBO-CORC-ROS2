@@ -1,74 +1,10 @@
 import os,sys
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
 
-sys.path.append(os.path.join(os.path.dirname(__file__)))
-from plot_pkg import compare_multi_dim_data,plot_3d_submovements
+sys.path.append(os.path.join(os.path.dirname(__file__),".."))
+from data_visual.plot_pkg import compare_multi_dim_data,plot_3d_submovements
 from scipy.interpolate import CubicSpline
-
-""" separate variations into train test """
-def separate_train_test(variant_list,path):
-    # Given numbers
-    numbers = np.array([i for i in range(len(variant_list))])
-
-    # Randomly select 2 numbers for test
-    diff = 0
-    while diff < 3 or diff == len(numbers)-1:
-        test = np.random.choice(numbers, size=2, replace=False)+1
-        diff = test[1]-test[0] # make sure that selected points are always 2 points away and not simultaneously the 2 extremes
-
-    case_id = []
-    train_var = []
-    test_var = []
-    # Iterate through the files in the source folder
-    for var in variant_list:
-        # Use regex to extract the number between 'm' and 'd'
-        var_id = int(var[-1])
-        # Check if m_value is even or odd
-        if var_id in test:
-            case_id.append("test")
-            test_var.append(var)
-        else:
-            case_id.append("train")
-            train_var.append(var)
-
-    # save train/test split to csv
-    train_test_df = pd.DataFrame({
-        "variant": variant_list,
-        "split": case_id
-    })
-    train_test_df.to_csv(f'{path}',index=True)
-    return case_id,train_var,test_var
-
-""" separate repetitions in training variations into train validation"""
-def separate_train_val(train_list, repetition_num, path):
-    train_reps = []
-    val_reps = []
-    case_id = []
-    repetitions = []
-    # randomly select one rep for validation, rest for training
-    for var in train_list:
-        val_rep_num = np.random.randint(1, repetition_num + 1)
-        for rep in range(1, repetition_num + 1):
-            rep_path = f"{var}/processed/UBORecord{rep}Log.csv"
-            repetitions.append(rep_path)
-            if rep == val_rep_num:
-                val_reps.append(rep_path)
-                case_id.append("val")
-            else:
-                train_reps.append(rep_path)
-                case_id.append("train")
-    
-    # save train/val split to csv
-    split_labels = ["train"] * len(train_reps) + ["val"] * len(val_reps)
-    train_val_df = pd.DataFrame({
-        "repetition": repetitions,
-        "split": case_id
-    })
-    train_val_df.to_csv(f'{path}', index=False)
-    
-    return train_reps, val_reps
 
 """low pass filter"""
 def lpf(time_array,data,ts=0.01,fc=50,datatype="trajectory",plot_results=False):
@@ -251,13 +187,3 @@ def rescale(t_old, data,t_new,datatype="trajectory",plot_results=False):
             fig_label=f'rescale_{datatype}'    
         )
     return data_interp
-
-""" create directory if needed"""
-def create_dir(data_path):
-    if not os.path.isdir(data_path):
-        os.makedirs(data_path)
-
-""" split all variations / repetitions into a list of variations of a list of repetitions"""
-def split_reps(data_list:list=[],n=4):
-	result = [data_list[i:i+n] for i in range(0, len(data_list), n)]
-	return result
