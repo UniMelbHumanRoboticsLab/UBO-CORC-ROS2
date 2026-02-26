@@ -124,7 +124,7 @@ class ubo_gui(pycorc_gui):
             start_log = QShortcut("S", self)
             start_log.activated.connect(self.logger_worker.start_worker)
             # to stop logging and close everything
-            stop_log = QShortcut("C", self)
+            stop_log = QShortcut("enter", self)
             stop_log.activated.connect(self.logger_worker.reset_logger)
         close = QShortcut("Q", self)
         close.activated.connect(self.gui_timer.stop)
@@ -338,7 +338,7 @@ if __name__ == "__main__":
                 "session_data":{
                     "take_num":0,
                     "subject_id":"exp1/p1/ying2",
-                    "task_id":"task_1/var_1"
+                    "task_id":"task_1/var_2"
                 }
                }
         

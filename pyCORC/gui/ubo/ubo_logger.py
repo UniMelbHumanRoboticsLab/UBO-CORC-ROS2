@@ -150,7 +150,7 @@ class ubo_logger(QObject):
             self.save_file(path=f"{self.save_path}/",df=df,item=f"UBORecord{self.take_text}Log")
             
             """
-            emit the average rft bias for this variation to the GUI
+            emit the average rft bias for this variation to the GUI avd save everything as well
             """
             if self.take_num == 0:
                 mean_bias = np.mean(np.array(self.bias_arr),axis=0)
@@ -159,8 +159,16 @@ class ubo_logger(QObject):
                     "bias":mean_bias.tolist()
                         })
                 
-                
-        
+                bias_column = [
+                            "F1x","F1y","F1z","T1x","T1y","T1z",
+                            "F2x","F2y","F2z","T2x","T2y","T2z",
+                            "F3x","F3y","F3z","T3x","T3y","T3z",
+                           ]
+                bias_arr = np.array(self.bias_arr)
+                df = pd.DataFrame(bias_arr,columns=bias_column)
+                self.save_file(path=f"{self.save_path}/",df=df,item="UBOConstBiasLog")
+                np.save(f"{self.save_path}/UBOAvgBias", mean_bias)
+
         # reset everything
         if self.init_args["corc"]["on"]:
             self.corc_arr = []
