@@ -9,11 +9,12 @@ np.set_printoptions(
     formatter={'float_kind': lambda x: f"{x:.4f}"}
 )
 
-from plot_pkg import compare_multi_dim_data,plot_3d_trajectory,plot_3d_points,split_plot_all
-from post_process_pkg import lpf,calc_fixed_diff,calc_mag,segment_sbmvmts,rescale,separate_train_test,separate_train_val,create_dir,split_reps
-from csv_pkg import get_raw_data
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+from post_process_pkg import lpf,calc_fixed_diff,calc_mag,segment_sbmvmts,rescale
+from file_util_pkg import get_raw_data,separate_train_test,separate_train_val,create_dir
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from data_visual.plot_pkg import compare_multi_dim_data,plot_3d_trajectory,split_plot_all
 from pyCORC.pycorc_io.xsens.ub_pckg.ub import ub
 from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
 
@@ -37,6 +38,19 @@ skeleton = ub(body_params_rbt,model="ubo",arm_side="right")
 NUM_RFT = 3
 rft_keys = ["clav","ua","fa"]
 
+# """ get initial installation bias from actual data to check"""
+# total_arr = pd.read_csv(f'{subject_path}/UBOBias1Log.csv').values[:,1:-1]
+# for i in range(3):
+#     if i == 0:
+#         bias = np.mean(total_arr[:,i*6:i*6+6],axis=0)+np.array([0,-0.82,0,0,0,0])
+#     else:
+#         bias = np.mean(total_arr[:,i*6:i*6+6],axis=0)+np.array([0,0,-0.82,0,0,0])
+    
+#     txt = ""
+#     for w in bias:
+#         txt+=f"{w:.4f},"
+#     print(f"Bias{i}:",txt)
+
 #%% 
 """ compile all data across all variations-takes in current p1 actor - task """
 """ remove gravity effects from corc data """
@@ -51,14 +65,14 @@ fs = 100
 dt = 1/fs
 for var in session_data["variants"]:
     full_data_dict[var] = {}
+    bias_path = f'{subject_path}/{session_data["task_id"]}/{var}/raw'
+    avg_var_bias = np.load(f"{bias_path}/UBOAvgBias.npy")
+    print(f"{var}_Bias:",avg_var_bias)
+
     for rep in range(1,session_data["num_rep"]+1):
         # read the csv file for the current rep
         data_path = f'{subject_path}/{session_data["task_id"]}/{var}/raw/UBORecord{rep}Log.csv'
-        # create the following subdirectories if needed
-        create_dir(f'{subject_path}/{session_data["task_id"]}/{var}/processed/tp')
-        create_dir(f'{subject_path}/{session_data["task_id"]}/{var}/processed/index')
         print(data_path)
-
         full_data,time_data_unscaled,corc_data_unscaled,q_traj_unscaled = get_raw_data(data_path)
         time_data_unscaled = time_data_unscaled - time_data_unscaled[0]
 
@@ -78,7 +92,7 @@ for var in session_data["variants"]:
             total_weight_traj.append(weight_traj)
         total_weight_traj = np.hstack(total_weight_traj) 
         offset2 = np.array(offset2)
-        corc_data_unscaled = corc_data_unscaled + np.array(offset2) - total_weight_traj
+        corc_data_unscaled = corc_data_unscaled + np.array(offset2) - total_weight_traj - avg_var_bias
 
         """ Filter """
         # filter the original data
@@ -113,6 +127,8 @@ for var in session_data["variants"]:
             taus_traj[rft_key]["filtered-rescaled"] = rescale(time_data_unscaled, taus_traj[rft_key]["filtered"], time_data,  datatype=f"tau_{rft_key}_{var}-Rep{rep}",      plot_results=plot_results)
 
         """ Segment """
+        # create the following subdirectories if needed
+        create_dir(f'{subject_path}/{session_data["task_id"]}/{var}/processed/index')
         # index active movement
         _,start_end_indices = segment_sbmvmts(time_data,hand_pos_traj,hand_speed,1,data_path=f'{subject_path}/{session_data["task_id"]}/{var}/processed/index/UBOStartEnd{rep}.txt',redo=False)
         time_data       = time_data[start_end_indices[0]:start_end_indices[-1]]-time_data[start_end_indices[0]]
@@ -153,6 +169,7 @@ for var in session_data["variants"]:
         indices_traj,sbmvmt_indices = segment_sbmvmts(time_data_norm,hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{session_data["task_id"]}/{var}/processed/index/UBOIndex{rep}.txt',redo=False)
 
         """ Extract TP """
+        create_dir(f'{subject_path}/{session_data["task_id"]}/{var}/processed/tp')
         # extract task parameters from each submovements (Input: joint kinematics, output: joint torques)
         q = ['trunk_ie','trunk_aa','trunk_fe',
                 'clav_dep_ev','clav_prot_ret',
@@ -189,7 +206,7 @@ for var in session_data["variants"]:
         qdot_traj_list.append(qdot_traj_rad)
         hand_3d_traj_list.append(hand_pos_traj)
         sbmvmt_list.append(indices_traj)  
-        rep_label_list.append(f'{var}-Rep{rep}')
+        rep_label_list.append(f'{var}.Rep{rep}')
 
 fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list)
 split_plot_all(session_data["variants"],time_list,q_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="q_rad",fig_label="q_rad data")
@@ -249,7 +266,7 @@ for i, rft_key in enumerate(rft_keys+["total"]):
                 wrench_list.append(wrench)
             time_list.append(time_data)
             taus_list.append(tau_data)
-            rep_label_list.append(f'{var}-Rep{rep}')
+            rep_label_list.append(f'{var}.Rep{rep}')
 
     if rft_key != "total":
         # compare_multi_dim_data(
