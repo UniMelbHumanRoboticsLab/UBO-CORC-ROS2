@@ -33,23 +33,10 @@ case_id,train_var,test_var = separate_train_test(session_data["variants"],f'{sub
 train_set , val_set = separate_train_val(train_var,session_data["num_rep"],f'{subject_path}/{session_data["task_id"]}/train_val_split.csv')
 
 """ init xsens skeleton model """
-body_params_rbt,ft_grav,ft_install = get_subject_params(subject_path)
+body_params_rbt,ft_grav,removed_bias = get_subject_params(subject_path)
 skeleton = ub(body_params_rbt,model="ubo",arm_side="right")
 NUM_RFT = 3
 rft_keys = ["clav","ua","fa"]
-
-# """ get initial installation bias from actual data to check"""
-# total_arr = pd.read_csv(f'{subject_path}/UBOBias1Log.csv').values[:,1:-1]
-# for i in range(3):
-#     if i == 0:
-#         bias = np.mean(total_arr[:,i*6:i*6+6],axis=0)+np.array([0,-0.82,0,0,0,0])
-#     else:
-#         bias = np.mean(total_arr[:,i*6:i*6+6],axis=0)+np.array([0,0,-0.82,0,0,0])
-    
-#     txt = ""
-#     for w in bias:
-#         txt+=f"{w:.4f},"
-#     print(f"Bias{i}:",txt)
 
 #%% 
 """ compile all data across all variations-takes in current p1 actor - task """
@@ -67,7 +54,7 @@ for var in session_data["variants"]:
     full_data_dict[var] = {}
     bias_path = f'{subject_path}/{session_data["task_id"]}/{var}/raw'
     avg_var_bias = np.load(f"{bias_path}/UBOAvgBias.npy")
-    print(f"{var}_Bias:",avg_var_bias)
+    print(f"{var}_installa_Bias:",avg_var_bias)
 
     for rep in range(1,session_data["num_rep"]+1):
         # read the csv file for the current rep
@@ -76,13 +63,15 @@ for var in session_data["variants"]:
         full_data,time_data_unscaled,corc_data_unscaled,q_traj_unscaled = get_raw_data(data_path)
         time_data_unscaled = time_data_unscaled - time_data_unscaled[0]
 
-        # add the initial installation bias, remove average bias collected during Take_bias, remove gravity bias using xsens data FROM corc_data
+        # add the initial removed bias
+        # remove actual installation bias collected during Take_bias
+        # remove gravity bias using xsens data FROM corc_data
         robot_ees = skeleton.fkine(q_traj_unscaled.tolist())
-        offset2 = []
+        removed_bias_all = []
         total_weight_traj = []
         for i in range(NUM_RFT):
-            # get initial_bias
-            offset2 += ft_install[rft_keys[i]]
+            # get initial removed_bias
+            removed_bias_all += removed_bias[rft_keys[i]]
             
             # calculate traj of current sensor weight in sensor frame
             pose_traj = robot_ees[i + 1]
@@ -90,9 +79,10 @@ for var in session_data["variants"]:
             weight_traj = np.einsum('nji,j->ni', pose_traj.R, weight_comp) # transpose + matmul
             weight_traj = np.hstack([weight_traj, np.zeros((weight_traj.shape[0], 3))])  # append nx3 zeros
             total_weight_traj.append(weight_traj)
-        total_weight_traj = np.hstack(total_weight_traj) 
-        offset2 = np.array(offset2)
-        corc_data_unscaled = corc_data_unscaled + np.array(offset2) - total_weight_traj - avg_var_bias
+            
+        total_weight_traj = np.hstack(total_weight_traj)
+        removed_bias_all = np.array(removed_bias_all)
+        corc_data_unscaled = corc_data_unscaled + np.array(removed_bias_all) - avg_var_bias - total_weight_traj 
 
         """ Filter """
         # filter the original data

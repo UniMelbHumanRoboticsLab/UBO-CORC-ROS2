@@ -35,10 +35,10 @@ class ubo_gui(pycorc_gui):
         self.gui_args = self.init_args["init_flags"]["gui"]
         self.log_args = self.init_args["init_flags"]["log"]
         self.session_data = self.init_args["session_data"]
-        self.body_params_rbt,self.ft_grav,self.ft_install = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}'))
+        self.body_params_rbt,self.ft_grav,self.removed_bias = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}'))
         self.bias_response = np.array([0 for i in range(18)])
         
-        for dict_type,param_dict in zip(["BODY PARAMS","FT_GRAV","FT_INSTALL"],[self.body_params_rbt,self.ft_grav,self.ft_install]):
+        for dict_type,param_dict in zip(["BODY PARAMS","FT_GRAV","FT_INSTALL"],[self.body_params_rbt,self.ft_grav,self.removed_bias]):
             print()
             print(dict_type)
             for (key,value) in param_dict.items():
@@ -242,8 +242,9 @@ class ubo_gui(pycorc_gui):
                 robot_joints, robot_ee = self.skeleton["right"]["ub_xsens"].ub_fkine(self.xsens_response["right"]["list"])
             
             for i in range(NUM_RFT):
-                offset2 = np.array(self.ft_install[rft_key[i]])-self.bias_response[i*6:i*6+6]
-                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(offset2)
+                # add back the initial removed sensor base bias and remove the subsequent installation bias obtained from the logger
+                cur_removed_bias = np.array(self.removed_bias[rft_key[i]])
+                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(cur_removed_bias)-self.bias_response[i*6:i*6+6]
                 
                 # weight compensate with if robot_ee exist
                 if hasattr(self, 'xsens_response'):
@@ -284,8 +285,9 @@ class ubo_gui(pycorc_gui):
                         self.update_frame(frame,pos=pose.t,rot=pose.R*0.1)
                         if i != 0 and side == "right" and hasattr(self, 'corc_response'):
                             j = i - 1
-                            offset2 = np.array(self.ft_install[rft_key[j]])-self.bias_response[j*6:j*6+6]
-                            force_data = np.array(corc_data[1+j*6:1+j*6+6])+np.array(offset2)
+                            # add back the initial removed sensor base bias and remove the subsequent installation bias obtained from the logger
+                            net_bias = np.array(self.removed_bias[rft_key[j]])-self.bias_response[j*6:j*6+6]
+                            force_data = np.array(corc_data[1+j*6:1+j*6+6])+np.array(net_bias)
 
                             weight_comp = [x * self.ft_grav[rft_key[j]] for x in [0,0,-1]]
                             force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])

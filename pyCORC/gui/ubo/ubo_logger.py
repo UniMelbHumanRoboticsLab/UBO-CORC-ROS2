@@ -20,7 +20,7 @@ class ubo_logger(QObject):
         self.task_id = session_data["task_id"]
         self.subject_id = session_data["subject_id"]
         self.save_path = os.path.join(os.path.dirname(__file__), '../../..',f"logs/pycorc_recordings/{self.subject_id}/{self.task_id}/raw")
-        self.body_params_rbt,self.ft_grav,self.ft_install = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings//{self.subject_id}'))
+        self.body_params_rbt,self.ft_grav,self.removed_bias = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings//{self.subject_id}'))
         self.skeleton = ub(self.body_params_rbt,model="ubo",arm_side="right")
         
         # FPS Calculator
@@ -61,22 +61,6 @@ class ubo_logger(QObject):
             left = self.xsens_response["left"]["list"]
             self.xsens_arr.append([timecode]+right+left)
         
-        if hasattr(self, 'corc_response') and hasattr(self, 'xsens_response') and self.take_num == 0:
-            robot_joints, robot_ee = self.skeleton.ub_fkine(right)
-            corc_data =  self.corc_response["raw_data"]
-            bias_data = []
-            for i in range(NUM_RFT):
-                # get initial_bias
-                offset2 = np.array(self.ft_install[rft_key[i]])
-                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(offset2)
-                
-                # weight compensate with if robot_ee exist
-                pose = robot_ee[i + 1]
-                weight_comp = [x * self.ft_grav[rft_key[i]] for x in [0,0,-1]]
-                force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
-                bias_data += force_data.tolist()
-            self.bias_arr.append(bias_data)
-                
         """
         TODO: 
             if take num is 0, 
@@ -84,7 +68,22 @@ class ubo_logger(QObject):
             remove it from the corc reading to get rft bias at that sample point
             append the rft bias arrar without any forces acting on it (including gravity)
         """
-        
+        if hasattr(self, 'corc_response') and hasattr(self, 'xsens_response') and self.take_num == 0:
+            robot_joints, robot_ee = self.skeleton.ub_fkine(right)
+            corc_data =  self.corc_response["raw_data"]
+            bias_data = []
+            for i in range(NUM_RFT):
+                # get the removed bias
+                cur_removed_bias = np.array(self.removed_bias[rft_key[i]])
+                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(cur_removed_bias)
+                
+                # weight compensate with if robot_ee exist to get the actual installation bias
+                pose = robot_ee[i + 1]
+                weight_comp = [x * self.ft_grav[rft_key[i]] for x in [0,0,-1]]
+                force_data = force_data - np.array(list(np.matmul(pose.R.T, np.array(weight_comp))) + [0,0,0])
+                bias_data += force_data.tolist()
+            self.bias_arr.append(bias_data)
+                
         # emit the signal
         data = {
             "print_text":print_text,
@@ -129,7 +128,7 @@ class ubo_logger(QObject):
         self.stopped.emit()
     @Slot()
     def reset_logger(self):
-        print(f"Take {self.take_text} Elapsed Time: {self.elapsed_time}")
+        print(f"\nTake {self.take_text} Elapsed Time: {self.elapsed_time}")
 
         if hasattr(self, 'corc_response') and hasattr(self, 'xsens_response'):
             joints = ['trunk_ie','trunk_aa','trunk_fe',
@@ -150,11 +149,18 @@ class ubo_logger(QObject):
             self.save_file(path=f"{self.save_path}/",df=df,item=f"UBORecord{self.take_text}Log")
             
             """
-            emit the average rft bias for this variation to the GUI avd save everything as well
+            emit the average installation bias for this variation to the GUI avd save everything as well
             """
             if self.take_num == 0:
                 mean_bias = np.mean(np.array(self.bias_arr),axis=0)
-                print("Add. Bias:",mean_bias)
+                for i in range(3):
+                    bias = mean_bias[i*6:i*6+6]
+                    
+                    txt = ""
+                    for w in bias:
+                        txt+=f"{w:.4f},"
+                    print(f"Installation Bias{i}:",txt)
+                    
                 self.bias_ready.emit({
                     "bias":mean_bias.tolist()
                         })
