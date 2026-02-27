@@ -14,4 +14,11 @@ def get_subject_params(subject_path):
                         'm_fa': 1.1+0.23+0.6,
                         "shoulder_aa_offset": np.array(body_params["shoulder_aa_offset"]),
                         "ft_offsets": body_params["ft_offsets"]}
-    return body_params_rbt,body_params["ft_grav"],body_params["ft_install"]
+        
+        gravity ={
+          "clav": body_params["cuff_grav"]["clav"]+body_params["sensor_grav"],
+          "ua":   body_params["cuff_grav"]["ua"]+body_params["sensor_grav"],
+          "fa":   body_params["cuff_grav"]["fa"]+body_params["sensor_grav"]
+        }
+        
+    return body_params_rbt,gravity,body_params["removed_bias"]
