@@ -156,7 +156,7 @@ class corc_FLNL_client(QObject):
                 self.corc_frame_count = 0
 
             self.get_latest()
-            if(self.newValsRcv):
+            if(self.newValsRcv and len(self.ValsRcv)>0):
                 data = {
                     "raw_data":self.ValsRcv,
                     "corc_fps":self.corc_fps,
