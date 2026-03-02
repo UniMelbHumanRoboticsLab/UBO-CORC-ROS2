@@ -2,7 +2,7 @@ import json
 import numpy as np
 
 def get_subject_params(subject_path):
-    json_path = f"{subject_path}/body_param.json"
+    json_path = f"{subject_path}/body_meas.json"
     with open(json_path, 'r') as file:
         body_params = json.load(file)
         body_params_rbt = {'torso': body_params["torso"]/1000,

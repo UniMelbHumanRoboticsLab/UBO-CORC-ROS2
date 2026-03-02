@@ -51,9 +51,9 @@ class ubo_replay_gui(pycorc_gui):
                             'wrist_fe':0,
                             'wrist_dev':0
                         }
-        self.body_params_rbt,self.ft_grav,self.ft_install = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}'))
+        self.body_params_rbt,self.ft_grav,self.removed_bias = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["exp_id"]}/subject_measurements/{self.session_data["subject_id"]}'))
         
-        for dict_type,param_dict in zip(["BODY PARAMS","FT_GRAV","FT_INSTALL"],[self.body_params_rbt,self.ft_grav,self.ft_install]):
+        for dict_type,param_dict in zip(["BODY PARAMS","FT_GRAV","REMOVED_BIAS"],[self.body_params_rbt,self.ft_grav,self.removed_bias]):
             print()
             print(dict_type)
             for (key,value) in param_dict.items():
@@ -70,7 +70,6 @@ class ubo_replay_gui(pycorc_gui):
         """
         self.init_IOs()
         self.init_shortcuts()
-        # init_debug()
 
     """
     Init Sensor Worker / Thread / GUI Helper Functions
@@ -292,9 +291,11 @@ if __name__ == "__main__":
                             "replay":{"on":True}
                              },
                 "session_data":{
+                    "exp_id":"exp1",
+                    "patient_id":"p1",
+                    "subject_id":"ying3",
+                    "var_id":"var_2",
                     "take_num":1,
-                    "subject_id":"exp1/p1/ying",
-                    "task_id":f"task_1/var_{var}"
                 }
                }
         
@@ -303,7 +304,11 @@ if __name__ == "__main__":
     init_args = json.loads(argv)
     app = QtWidgets.QApplication(sys.argv)
     w = ubo_replay_gui(init_args)
-    w.setWindowTitle(f"UBO-CORC-{init_args['session_data']['subject_id']}/{init_args['session_data']['task_id']}")
+    title_str = f"UBO-CORC-{init_args['session_data']['exp_id']}"+"-"
+    title_str += init_args['session_data']['patient_id']+"-"
+    title_str += init_args['session_data']['subject_id']+"-"
+    title_str += init_args['session_data']['var_id']+" "
+    w.setWindowTitle(title_str)
     w.show()
 
     app.exec()

@@ -10,18 +10,26 @@ rft_key = ["clav","ua","fa"]
 class ubo_logger(QObject):
     time_ready = Signal(dict)
     bias_ready = Signal(dict)
-    finish_save = Signal()
+    collect_finish = Signal()
     stopped = Signal()
     def __init__(self,init_args,session_data):
         super().__init__()
         self.init_args = init_args
+        self.exp_id = session_data["exp_id"]
+        self.patient_id = session_data["patient_id"]
+        self.subject_id = session_data["subject_id"]
+        self.var_id = session_data["var_id"]
         self.take_num = session_data["take_num"]
         self.take_text = "Bias"
-        self.task_id = session_data["task_id"]
-        self.subject_id = session_data["subject_id"]
-        self.save_path = os.path.join(os.path.dirname(__file__), '../../..',f"logs/pycorc_recordings/{self.subject_id}/{self.task_id}/raw")
-        self.body_params_rbt,self.ft_grav,self.removed_bias = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings//{self.subject_id}'))
+        self.subject_path = f"logs/pycorc_recordings/{self.exp_id}/{self.patient_id}/{self.subject_id}"
+        
+        self.save_path = os.path.join(os.path.dirname(__file__), '../../..',f"{self.subject_path}/{self.var_id}/raw")
+        body_path = os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.exp_id}/subject_measurements/{self.subject_id}')
+        self.body_params_rbt,self.ft_grav,self.removed_bias = get_subject_params(body_path)
+        self.init_bias = np.load(f"{body_path}/UBOAvgBias.npy")
         self.skeleton = ub(self.body_params_rbt,model="ubo",arm_side="right")
+        
+        self.sensors_ready_flag = False
         
         # FPS Calculator
         self.logger_frame_count = 0
@@ -73,9 +81,9 @@ class ubo_logger(QObject):
             corc_data =  self.corc_response["raw_data"]
             bias_data = []
             for i in range(NUM_RFT):
-                # get the removed bias
+                # add back the removed gravity bias
                 cur_removed_bias = np.array(self.removed_bias[rft_key[i]])
-                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(cur_removed_bias)
+                force_data = np.array(corc_data[1+i*6:1+i*6+6])+cur_removed_bias-self.init_bias[i*6:i*6+6]
                 
                 # weight compensate with if robot_ee exist to get the actual installation bias
                 pose = robot_ee[i + 1]
@@ -96,26 +104,40 @@ class ubo_logger(QObject):
     """
     @Slot()
     def start_worker(self):
-        self.poll_timer = QTimer()
-        self.poll_timer.setTimerType(Qt.PreciseTimer)
-        self.poll_timer.timeout.connect(self.log_current_data)
-        self.poll_timer.start(int(1/100*1000))
-        self.logger_start_time = self.logger_timer.elapsed()
-
-        # corc
-        if self.init_args["corc"]["on"]:
-            self.corc_arr = []
-        # xsens
-        if self.init_args["xsens"]["on"]:
-            self.xsens_arr = []
-        # bias
-        if self.init_args["corc"]["on"] and self.init_args["xsens"]["on"]:
-            self.bias_arr = []
+        if self.sensors_ready_flag:
+            self.poll_timer = QTimer()
+            self.poll_timer.setTimerType(Qt.PreciseTimer)
+            self.poll_timer.timeout.connect(self.log_current_data)
+            self.poll_timer.start(int(1/100*1000))
+            self.logger_start_time = self.logger_timer.elapsed()
+    
+            # corc
+            if self.init_args["corc"]["on"]:
+                self.corc_arr = []
+            # xsens
+            if self.init_args["xsens"]["on"]:
+                self.xsens_arr = []
+            # bias
+            if self.init_args["corc"]["on"] and self.init_args["xsens"]["on"]:
+                self.bias_arr = []
+        else:
+            data = {
+                "print_text":"Bro wait\n",
+                "logger_fps":0
+            }
+            self.time_ready.emit(data)
         
     """
     External Signals Callbacks
     """
-    @Slot(dict)
+    @Slot()
+    def sensors_ready(self): # [self.rft_data_arr,self.rft_pose,self.rft_fps]
+        self.sensors_ready_flag = True
+        data = {
+            "print_text":"Sensors Ready\n",
+            "logger_fps":0
+        }
+        self.time_ready.emit(data)
     def update_corc(self,corc_response): # [self.rft_data_arr,self.rft_pose,self.rft_fps]
         self.corc_response = corc_response
     @Slot(dict)
@@ -184,6 +206,10 @@ class ubo_logger(QObject):
             
         self.take_num += 1
         self.take_text = f"{self.take_num}"
+        
+        if self.take_num > 4:
+            print(f"Finished collecting {self.subject_path}/{self.var_id}")
+            self.collect_finish.emit()
         
     """
     Helper Function

@@ -21,19 +21,24 @@ from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
 #%% 
 """ init session parameters and perform train / test / validation spliting"""
 session_data = {
-    "subject_id":"exp1/p1/ying",
-    "task_id":"task_1",
+    "exp_id":"exp1",
+    "patient_id":"p1",
+    "subject_id":"ying",
     "sbmvmt_num":2,
     "num_rep":4,
     "variants":["var_1","var_2","var_3","var_4","var_5","var_6"] #
 }
-subject_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["subject_id"]}')
+subject_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["exp_id"]}/{session_data["patient_id"]}/{session_data["subject_id"]}')
+
 # separate variants for train test and save splits to csv
-case_id,train_var,test_var = separate_train_test(session_data["variants"],f'{subject_path}/{session_data["task_id"]}/train_test_split.csv')
-train_set , val_set = separate_train_val(train_var,session_data["num_rep"],f'{subject_path}/{session_data["task_id"]}/train_val_split.csv')
+case_id,train_var,test_var = separate_train_test(session_data["variants"],f'{subject_path}/train_test_split.csv')
+train_set , val_set = separate_train_val(train_var,session_data["num_rep"],f'{subject_path}/train_val_split.csv')
 
 """ init xsens skeleton model """
-body_params_rbt,ft_grav,removed_bias = get_subject_params(subject_path)
+body_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["exp_id"]}/subject_measurements/{session_data["subject_id"]}')
+body_params_rbt,ft_grav,removed_bias = get_subject_params(body_path)
+init_bias = np.load(f"{body_path}/UBOAvgBias.npy")
+print(f"Init_install_Bias:",init_bias)
 skeleton = ub(body_params_rbt,model="ubo",arm_side="right")
 NUM_RFT = 3
 rft_keys = ["clav","ua","fa"]
@@ -52,18 +57,17 @@ fs = 100
 dt = 1/fs
 for var in session_data["variants"]:
     full_data_dict[var] = {}
-    bias_path = f'{subject_path}/{session_data["task_id"]}/{var}/raw'
+    bias_path = f'{subject_path}/{var}/raw'
     avg_var_bias = np.load(f"{bias_path}/UBOAvgBias.npy")
-    print(f"{var}_installa_Bias:",avg_var_bias)
+    print(f"{var}_install_Bias:",avg_var_bias)
 
     for rep in range(1,session_data["num_rep"]+1):
         # read the csv file for the current rep
-        data_path = f'{subject_path}/{session_data["task_id"]}/{var}/raw/UBORecord{rep}Log.csv'
-        print(data_path)
+        data_path = f'{subject_path}/{var}/raw/UBORecord{rep}Log.csv'
         full_data,time_data_unscaled,corc_data_unscaled,q_traj_unscaled = get_raw_data(data_path)
         time_data_unscaled = time_data_unscaled - time_data_unscaled[0]
 
-        # add the initial removed bias
+        # add the initial removed bias, remove the initial installation bias collected
         # remove actual installation bias collected during Take_bias
         # remove gravity bias using xsens data FROM corc_data
         robot_ees = skeleton.fkine(q_traj_unscaled.tolist())
@@ -79,11 +83,10 @@ for var in session_data["variants"]:
             weight_traj = np.einsum('nji,j->ni', pose_traj.R, weight_comp) # transpose + matmul
             weight_traj = np.hstack([weight_traj, np.zeros((weight_traj.shape[0], 3))])  # append nx3 zeros
             total_weight_traj.append(weight_traj)
-            
+        
         total_weight_traj = np.hstack(total_weight_traj)
         removed_bias_all = np.array(removed_bias_all)
-        corc_data_unscaled = corc_data_unscaled + np.array(removed_bias_all) - avg_var_bias - total_weight_traj 
-
+        corc_data_unscaled = corc_data_unscaled + removed_bias_all - avg_var_bias - total_weight_traj - init_bias
         """ Filter """
         # filter the original data
         plot_results = False # check if filter fucks up the data
@@ -118,9 +121,9 @@ for var in session_data["variants"]:
 
         """ Segment """
         # create the following subdirectories if needed
-        create_dir(f'{subject_path}/{session_data["task_id"]}/{var}/processed/index')
+        create_dir(f'{subject_path}/{var}/processed/index')
         # index active movement
-        _,start_end_indices = segment_sbmvmts(time_data,hand_pos_traj,hand_speed,1,data_path=f'{subject_path}/{session_data["task_id"]}/{var}/processed/index/UBOStartEnd{rep}.txt',redo=False)
+        _,start_end_indices = segment_sbmvmts(time_data,hand_pos_traj,hand_speed,1,data_path=f'{subject_path}/{var}/processed/index/UBOStartEnd{rep}.txt',redo=False)
         time_data       = time_data[start_end_indices[0]:start_end_indices[-1]]-time_data[start_end_indices[0]]
         corc_data       = corc_data[start_end_indices[0]:start_end_indices[-1],:]
         q_traj          = q_traj[start_end_indices[0]:start_end_indices[-1],:10] # from here just collect the first 10 joints
@@ -148,7 +151,6 @@ for var in session_data["variants"]:
         q_traj_rad      = np.deg2rad(q_traj)
         qdot_traj_rad   = np.deg2rad(qdot_traj)
 
-
         hand_pos_traj   = rescale(time_data, hand_pos_traj, time_data_norm, datatype=f"hand_pos_norm_{var}-Rep{rep}",   plot_results=plot_results)
         hand_speed      = rescale(time_data, hand_speed,    time_data_norm, datatype=f"hand_speed_norm_{var}-Rep{rep}", plot_results=plot_results)
         for rft_key in rft_keys+["total"]:
@@ -156,10 +158,10 @@ for var in session_data["variants"]:
 
         """ Segment """
         # segment rescaled submovements
-        indices_traj,sbmvmt_indices = segment_sbmvmts(time_data_norm,hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{session_data["task_id"]}/{var}/processed/index/UBOIndex{rep}.txt',redo=False)
+        indices_traj,sbmvmt_indices = segment_sbmvmts(time_data_norm,hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt',redo=False)
 
         """ Extract TP """
-        create_dir(f'{subject_path}/{session_data["task_id"]}/{var}/processed/tp')
+        create_dir(f'{subject_path}/{var}/processed/tp')
         # extract task parameters from each submovements (Input: joint kinematics, output: joint torques)
         q = ['trunk_ie','trunk_aa','trunk_fe',
                 'clav_dep_ev','clav_prot_ret',
@@ -172,7 +174,7 @@ for var in session_data["variants"]:
         task_params_b   = np.hstack([q_traj_rad[sbmvmt_indices,:], qdot_traj_rad[sbmvmt_indices,:],np.zeros((sbmvmt_indices.shape[0],len(tau_list)))])  # tau should have zero offset
         task_params     = np.hstack([task_params_A, task_params_b])
         tp_df = pd.DataFrame(task_params, columns=[f"A{j}" for j in range(1,num_dim*num_dim+1)] + [f"b{j}" for j in range(1,num_dim+1)])
-        tp_df.to_csv(f'{subject_path}/{session_data["task_id"]}/{var}/processed/tp/UBOTP{rep}Log.csv',index=False)
+        tp_df.to_csv(f'{subject_path}/{var}/processed/tp/UBOTP{rep}Log.csv',index=False)
 
         """ Save Post Processed Data """
         # compile all data
@@ -188,7 +190,7 @@ for var in session_data["variants"]:
         full_processed_data = np.hstack([time_data_norm[:,np.newaxis],indices_traj,q_traj_rad,qdot_traj_rad,taus_traj["total"]["filtered-rescaled"]])
         df_column = ["norm_time","index"]+q+qdot+tau_list
         full_df = pd.DataFrame(full_processed_data,columns=df_column)
-        full_df.to_csv(f'{subject_path}/{session_data["task_id"]}/{var}/processed/UBORecord{rep}Log.csv',index=False)
+        full_df.to_csv(f'{subject_path}/{var}/processed/UBORecord{rep}Log.csv',index=False)
 
         # for plotting
         time_list.append(time_data_norm)

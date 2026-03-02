@@ -35,18 +35,24 @@ class ubo_gui(pycorc_gui):
         self.gui_args = self.init_args["init_flags"]["gui"]
         self.log_args = self.init_args["init_flags"]["log"]
         self.session_data = self.init_args["session_data"]
-        self.body_params_rbt,self.ft_grav,self.removed_bias = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["subject_id"]}'))
+        
+        body_path = os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.session_data["exp_id"]}/subject_measurements/{self.session_data["subject_id"]}')
+        self.body_params_rbt,self.ft_grav,self.removed_bias = get_subject_params(body_path)
+        self.init_bias = np.load(f"{body_path}/UBOAvgBias.npy")
         self.bias_response = np.array([0 for i in range(18)])
         
-        for dict_type,param_dict in zip(["BODY PARAMS","FT_GRAV","FT_INSTALL"],[self.body_params_rbt,self.ft_grav,self.removed_bias]):
+        for dict_type,param_dict in zip(["BODY PARAMS","FT_GRAV","REMOVED_BIAS"],[self.body_params_rbt,self.ft_grav,self.removed_bias]):
             print()
             print(dict_type)
             for (key,value) in param_dict.items():
                 print(f"{key}:{value}")
+        for i,key in enumerate(rft_key):
+            print(f"Init Bias {key}:\t{self.init_bias[i*6:(i+1)*6]}")
         print()
 
         self.num_closed_threads = 0
         self.num_opened_threads = 0
+        self.requested_threads = 3
 
         super().__init__(freq=self.gui_args["freq"],gui_3d=self.gui_args["3d"])
 
@@ -58,7 +64,6 @@ class ubo_gui(pycorc_gui):
         """
         self.init_IOs()
         self.init_shortcuts()
-        # init_debug()
 
     """
     Init Sensor Worker / Thread / GUI Helper Functions
@@ -66,6 +71,9 @@ class ubo_gui(pycorc_gui):
     def add_opened_threads(self):
         self.num_opened_threads += 1
         print(f"Threads Opened:{self.num_opened_threads}")
+        
+        if self.num_opened_threads == self.requested_threads:
+            QMetaObject.invokeMethod(self.logger_worker , "sensors_ready", Qt.ConnectionType.QueuedConnection)
     def init_corc(self):
         # init response label
         self.corc_label = self.init_response_label(size=[525,200])
@@ -129,6 +137,7 @@ class ubo_gui(pycorc_gui):
         close = QShortcut("Q", self)
         close.activated.connect(self.gui_timer.stop)
         close.activated.connect(self.close_workers)
+        
     def init_IOs(self):
         """
         Init IO thread and worker
@@ -192,6 +201,9 @@ class ubo_gui(pycorc_gui):
             self.logger_thread.started.connect(self.add_opened_threads)
             # connect worker stop to stop thread at closeup
             self.logger_worker.stopped.connect(self.logger_thread.exit)
+            # connect worker collect finish to stop app
+            self.logger_worker.collect_finish.connect(self.gui_timer.stop)
+            self.logger_worker.collect_finish.connect(self.close_workers)
             # connect thread finished to close app
             self.logger_thread.finished.connect(self.close_app)
 
@@ -244,7 +256,7 @@ class ubo_gui(pycorc_gui):
             for i in range(NUM_RFT):
                 # add back the initial removed sensor base bias and remove the subsequent installation bias obtained from the logger
                 cur_removed_bias = np.array(self.removed_bias[rft_key[i]])
-                force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(cur_removed_bias)-self.bias_response[i*6:i*6+6]
+                force_data = np.array(corc_data[1+i*6:1+i*6+6])+cur_removed_bias-self.init_bias[i*6:i*6+6]-self.bias_response[i*6:i*6+6]
                 
                 # weight compensate with if robot_ee exist
                 if hasattr(self, 'xsens_response'):
@@ -286,7 +298,7 @@ class ubo_gui(pycorc_gui):
                         if i != 0 and side == "right" and hasattr(self, 'corc_response'):
                             j = i - 1
                             # add back the initial removed sensor base bias and remove the subsequent installation bias obtained from the logger
-                            net_bias = np.array(self.removed_bias[rft_key[j]])-self.bias_response[j*6:j*6+6]
+                            net_bias = np.array(self.removed_bias[rft_key[j]])-self.bias_response[j*6:j*6+6]-self.init_bias[j*6:j*6+6]
                             force_data = np.array(corc_data[1+j*6:1+j*6+6])+np.array(net_bias)
 
                             weight_comp = [x * self.ft_grav[rft_key[j]] for x in [0,0,-1]]
@@ -335,12 +347,15 @@ if __name__ == "__main__":
                                     "freq":30,
                                     "3d":True,
                                     "force":False},
+
                              "log":{"on":True}
                              },
                 "session_data":{
+                    "exp_id":"exp1",
+                    "patient_id":"p1",
+                    "subject_id":"ying3",
+                    "var_id":"var_2",
                     "take_num":0,
-                    "subject_id":"exp1/p1/ying2",
-                    "task_id":"task_1/var_2"
                 }
                }
         
@@ -349,7 +364,12 @@ if __name__ == "__main__":
     init_args = json.loads(argv)
     app = QtWidgets.QApplication(sys.argv)
     w = ubo_gui(init_args)
-    w.setWindowTitle(f"UBO-CORC-{init_args['session_data']['subject_id']}/{init_args['session_data']['task_id']}")
+    
+    title_str = f"UBO-CORC-{init_args['session_data']['exp_id']}"+"-"
+    title_str += init_args['session_data']['patient_id']+"-"
+    title_str += init_args['session_data']['subject_id']+"-"
+    title_str += init_args['session_data']['var_id']+" "
+    w.setWindowTitle(title_str)
     w.show()
 
     app.exec()

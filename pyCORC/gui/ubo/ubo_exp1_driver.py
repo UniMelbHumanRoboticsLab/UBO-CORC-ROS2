@@ -4,15 +4,15 @@ import subprocess, sys, os,json
 SCRIPT = os.path.join(os.path.dirname(__file__), "ubo_gui.py")
 
 var_num = 2
-task_id = "task_1"
 exp_id = "exp1"
-patient_id = "p1/JQ"
+patient_id = "p1"
+subject_id = "ying3"
 
-print(f"Starting {exp_id} - {patient_id} - {task_id}")
+print(f"Starting {exp_id} - {patient_id} - {subject_id}")
 
 for var in range(var_num):
     print("========================================================\n")
-    go_on = input(f"Start {task_id}/var_{var+1}?: y/n: ")
+    go_on = input(f"Start var_{var+1}?: y/n: ")
     while (go_on != "y" and go_on != "n"):
         go_on = input("Continue?: Reenter y/n: ")
     if go_on == "y":
@@ -23,39 +23,41 @@ for var in range(var_num):
         break
     print("========================================================\n")
     argv ={
-        "init_flags":{"corc":{"on":True,
-                                "ip":"127.0.0.1",
-                                "port":2048},
+           "init_flags":{"corc":{"on":True,
+                                 "ip":"127.0.0.1",
+                                 "port":2048},
                         "xsens":{"on":True,
-                                "ip":"0.0.0.0",
-                                "port":9764},
-                        "gui":{"on":True,
-                                "freq":60,
+                                 "ip":"0.0.0.0",
+                                 "port":9764},
+                         "gui":{"on":True,
+                                "freq":30,
                                 "3d":True,
                                 "force":False},
-                        "log":{"on":True}
-                        },
-            "rig":True,
+
+                         "log":{"on":True}
+                         },
             "session_data":{
+                "exp_id": exp_id,
+                "patient_id":patient_id,
+                "subject_id":subject_id,
+                "var_id":f"var_{var+1}",
                 "take_num":0,
-                "subject_id":f"{exp_id}/{patient_id}",
-                "task_id":f"{task_id}/var_{var+1}",
             }
-        }
+           }
 
     argv = json.dumps(argv)
 
-    print(f"=== {task_id}/var_{var+1} started ===")
+    print(f"=== var_{var+1} started ===")
     rc = subprocess.call(
         [sys.executable, SCRIPT,str(argv)],
         env=os.environ,
     )
     if rc != 0:
-        print(f"{task_id}/var_{var+1} exited with {rc}, stopping.")
+        print(f" var_{var+1} exited with {rc}, stopping.")
         break
     import time
     time.sleep(1)
-    print(f"\n=== {task_id}/var_{var+1} ended ===\n")
+    print(f"\n=== var_{var+1} ended ===\n")
 
     if p == "N":
         break

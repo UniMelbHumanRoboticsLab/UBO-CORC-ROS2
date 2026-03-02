@@ -18,11 +18,24 @@ class ubo_replayer(QObject):
     def __init__(self,init_args,session_data):
         super().__init__()
         self.init_args = init_args
-        self.take_num = session_data["take_num"]
-        self.task_id = session_data["task_id"]
+        self.exp_id = session_data["exp_id"]
+        self.patient_id = session_data["patient_id"]
         self.subject_id = session_data["subject_id"]
-        self.subject_path = os.path.join(os.path.dirname(__file__), '../../..',f"logs/pycorc_recordings/{self.subject_id}/{self.task_id}")
-        self.body_params_rbt,self.ft_grav,self.ft_install = get_subject_params(os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.subject_id}'))
+        self.var_id = session_data["var_id"]
+        self.take_num = session_data["take_num"]
+        self.take_text = "Bias"
+        self.subject_path = f"logs/pycorc_recordings/{self.exp_id}/{self.patient_id}/{self.subject_id}"
+        
+        body_path = os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.exp_id}/subject_measurements/{self.subject_id}')
+        self.body_params_rbt,self.ft_grav,self.removed_bias = get_subject_params(body_path)
+        self.init_bias = np.load(f"{body_path}/UBOAvgBias.npy")
+        self.save_path = os.path.join(os.path.dirname(__file__), '../../..',f"{self.subject_path}/{self.var_id}/raw")
+        self.var_bias = np.load(f"{self.save_path}/UBOAvgBias.npy")
+        for i,key in enumerate(rft_key):
+            print(f"Init Bias {key}:\t{self.init_bias[i*6:(i+1)*6]}")
+            print(f"Variation Bias {key}:\t{self.var_bias[i*6:(i+1)*6]}")
+        print()
+        
         self.skeleton = ub(self.body_params_rbt,model="ubo",arm_side="right")
         
         # FPS Calculator
@@ -38,8 +51,8 @@ class ubo_replayer(QObject):
         print("UBO Replayer Started")
         self.read_logged_data()
     def read_logged_data(self):
-        # read logged data
-        self.data = pd.read_csv(f"{self.subject_path}/raw/UBORecord{self.take_num}Log.csv")
+        # read logged data        
+        self.data = pd.read_csv(f"{self.save_path}/UBORecord{self.take_num}Log.csv")
         self.total_frames = len(self.data) if self.init_args["corc"]["on"]==1 else 1000
         self.frame_id = 0
         if self.init_args["corc"]["on"]:
@@ -71,8 +84,8 @@ class ubo_replayer(QObject):
         processed = [0]
         for i in range(NUM_RFT):
             # get initial_bias
-            offset2 = np.array(self.ft_install[rft_key[i]])
-            force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(offset2)
+            removed_bias = np.array(self.removed_bias[rft_key[i]])
+            force_data = np.array(corc_data[1+i*6:1+i*6+6])+np.array(removed_bias)-self.var_bias[i*6:i*6+6]-self.init_bias[i*6:i*6+6]
             
             # weight compensate with if robot_ee exist
             pose = robot_ee[i + 1]
@@ -149,10 +162,10 @@ class ubo_replayer(QObject):
             try:
                 self.take_num += 1
                 self.read_logged_data()
-            except Exception as e:
+            except Exception:
                 self.take_num = 1
                 self.read_logged_data()
-                print(f"Restart {self.task_id}")
+                print(f"Restart {self.var_id}")
             finally:
                 self.replayer_start_time = self.replayer_timer.elapsed()
 
