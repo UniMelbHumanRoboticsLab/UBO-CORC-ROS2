@@ -11,13 +11,14 @@ from data_visual.plot_pkg import compare_multi_dim_data,plot_mean_ci,interactive
 from data_process.file_util_pkg import create_dir,compile_train_val_test_data
 
 session_data = {
-    "subject_id":"exp1/p1/ying",
-    "task_id":"task_1",
+    "exp_id":"exp1",
+    "patient_id":"p1",
+    "subject_id":"ying",
     "sbmvmt_num":2,
     "num_rep":4,
-    "variants":["var_1","var_2","var_3","var_4","var_5","var_6"]
+    "variants":["var_1","var_2","var_3","var_4","var_5","var_6"] #
 }
-subject_path = os.path.join(os.path.dirname(__file__), '../..',f'logs/pycorc_recordings/{session_data["subject_id"]}/{session_data["task_id"]}')
+subject_path = os.path.join(os.path.dirname(__file__), '../..',f'logs/pycorc_recordings/{session_data["exp_id"]}/{session_data["patient_id"]}/{session_data["subject_id"]}')
 
 train_list,val_list,test_list = compile_train_val_test_data(session_data,subject_path,False)
 all_data = []
