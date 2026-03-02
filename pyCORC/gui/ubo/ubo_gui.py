@@ -23,7 +23,7 @@ from pycorc_io.package_utils.unpack_json import get_subject_params
 print("Importing PySide6")
 from PySide6 import QtWidgets
 from PySide6.QtGui import QShortcut
-from PySide6.QtCore import QThread,Qt,QMetaObject,Slot,Qt
+from PySide6.QtCore import QThread,Qt,QMetaObject,Slot
 
 NUM_RFT = 3
 rft_key = ["clav","ua","fa"]

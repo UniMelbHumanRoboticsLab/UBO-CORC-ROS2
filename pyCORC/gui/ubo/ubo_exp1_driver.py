@@ -33,7 +33,6 @@ for var in range(var_num):
                                 "freq":30,
                                 "3d":True,
                                 "force":False},
-
                          "log":{"on":True}
                          },
             "session_data":{
@@ -41,8 +40,7 @@ for var in range(var_num):
                 "patient_id":patient_id,
                 "subject_id":subject_id,
                 "var_id":f"var_{var+1}",
-                "take_num":0,
-            }
+                "take_num":0,}
            }
 
     argv = json.dumps(argv)
