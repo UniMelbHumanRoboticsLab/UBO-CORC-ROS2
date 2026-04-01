@@ -121,7 +121,7 @@ class ubo_gui(pycorc_gui):
                     self.skeleton[side]["forces"] = forces
     def init_logger(self):
         # init response label
-        self.logger_label = self.init_response_label(size=[250,150])
+        self.logger_label = self.init_response_label(size=[600,300],fontsize=50)
         self.logger_thread = QThread()
         self.logger_worker = ubo_logger(init_args = self.init_args["init_flags"],
                                         session_data  = self.session_data)
@@ -134,6 +134,9 @@ class ubo_gui(pycorc_gui):
             # to stop logging and close everything
             stop_log = QShortcut("enter", self)
             stop_log.activated.connect(self.logger_worker.reset_logger)
+            # to redo previous take
+            redo_log = QShortcut("R", self)
+            redo_log.activated.connect(self.logger_worker.redo_take)
         close = QShortcut("Q", self)
         close.activated.connect(self.gui_timer.stop)
         close.activated.connect(self.close_workers)
@@ -307,7 +310,7 @@ class ubo_gui(pycorc_gui):
         if hasattr(self, 'logger_response'):
             print_text = self.logger_response["print_text"]
             fps = self.logger_response["logger_fps"]
-            self.update_response_label(self.logger_label,f"{print_text}FPS:{fps}")
+            self.update_response_label(self.logger_label,f"{print_text}")
     
     """
     Cleanup
@@ -353,7 +356,7 @@ if __name__ == "__main__":
                 "session_data":{
                     "exp_id":"exp1",
                     "patient_id":"p1",
-                    "subject_id":"ying3",
+                    "subject_id":"test",
                     "var_id":"var_2",
                     "take_num":0,
                 }

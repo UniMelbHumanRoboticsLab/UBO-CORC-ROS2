@@ -333,6 +333,7 @@ if __name__ == "__main__":
     try:
         argv = sys.argv[1]
     except:
+        subject_id = input("subject id?: sub<>: ")
         argv ={
                "init_flags":{"corc":{"on":True,
                                      "ip":"127.0.0.1",
@@ -347,7 +348,7 @@ if __name__ == "__main__":
                              "log":{"on":True}},
                 "session_data":{
                     "exp_id":"exp1",
-                    "subject_id":"ying3",
+                    "subject_id":subject_id,
                 }
                }
         

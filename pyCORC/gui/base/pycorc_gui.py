@@ -45,7 +45,16 @@ class pycorc_gui(QtWidgets.QMainWindow):
     def __init__(self,freq=100,gui_3d=True):
         super().__init__()
         self.setWindowTitle("Live Sensor Plot")
-        # self.setWindowState(Qt.WindowMaximized) # cannot use in ubuntu
+        
+        # Get all available screens
+        app = QtWidgets.QApplication.instance()
+        screens = app.screens()
+        # Use the second screen (index 1) if available
+        if len(screens) > 1:
+            second_screen = screens[0]
+            screen_geometry = second_screen.geometry()
+            self.setGeometry(screen_geometry)
+        # self.showFullScreen()
 
         # self.container and main layout boxes, this is the main box: DONT TOUCH
         self.container = QtWidgets.QWidget()
@@ -146,10 +155,10 @@ class pycorc_gui(QtWidgets.QMainWindow):
         self.canvas_gui_3d.create_native()
         self.main_layout.addWidget(self.canvas_gui_3d.native)
         self.view_gui_3d = self.canvas_gui_3d.central_widget.add_view()
-        self.view_gui_3d.camera = scene.TurntableCamera(up='z',fov=45, distance=4)
+        self.view_gui_3d.camera = scene.TurntableCamera(up='z',fov=30, distance=2,azimuth=135,elevation=20)
 
         # Grid for reference
-        axis = scene.visuals.XYZAxis(parent=self.view_gui_3d.scene)
+        # axis = scene.visuals.XYZAxis(parent=self.view_gui_3d.scene)
         grid = scene.visuals.GridLines(grid_bounds=(-5, 5, -5, 5),border_width=1)
         self.view_gui_3d.add(grid)
 
@@ -188,12 +197,13 @@ class pycorc_gui(QtWidgets.QMainWindow):
         plt = scene.visuals.Markers(pos=pos, edge_color=None, face_color=(0.5, 0.5, 0.5, 1),size=12)
         self.view_gui_3d.add(plt)
         return plt
-    def init_response_label(self,size=[200,200]):
+    def init_response_label(self,size=[200,200],fontsize=10):
         response_label = QtWidgets.QLabel("WAITING RESPONSE")
+        response_label.setStyleSheet("background-color: black; color: white;")
         response_label.setFixedSize(size[0],size[1])
         response_label.setFrameStyle(QtWidgets.QFrame.Shape.Box | QtWidgets.QFrame.Shadow.Plain)
         font = QFont("Courier New")
-        font.setPixelSize(10)
+        font.setPixelSize(fontsize)
         response_label.setFont(font)  # monospace
         response_label.setTextFormat(Qt.TextFormat.PlainText)  # keep spaces as-is
         self.labels_layout.addWidget(response_label)

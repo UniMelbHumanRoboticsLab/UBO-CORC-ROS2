@@ -74,7 +74,7 @@ class xsens_server(QObject):
         self.server_socket = socket.socket(socket.AF_INET, # Internet
                             socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow immediate reuse of the port
-        self.server_socket.settimeout(1)
+        self.server_socket.settimeout(5)
         # Connection
         print('XSENServer: connecting to ('+self.ip+':'+str(self.port)+')...')
         try:

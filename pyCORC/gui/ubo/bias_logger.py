@@ -167,10 +167,11 @@ class bias_logger(QObject):
             mean_bias = np.mean(np.array(self.bias_arr),axis=0)
             for i in range(3):
                 bias = mean_bias[i*6:i*6+6]
-                
+                mag = np.linalg.norm(np.array(bias[0:3]))
                 txt = ""
                 for w in bias:
                     txt+=f"{w:.4f},"
+                txt += f"{mag:.4f}"
                 print(f"Installation Bias{i}:",txt)
                 
             self.bias_ready.emit({

@@ -47,7 +47,7 @@ class ubo_logger(QObject):
     """
     def log_current_data(self):
         # update FPS
-        print_text = f"Logging Take {self.take_text}\n"
+        print_text = f"{self.subject_id}-{self.patient_id}-{self.var_id}\nTake {self.take_text}\n"
         self.logger_frame_count += 1
         self.logger_cur_time = self.logger_timer.elapsed()
         self.elapsed_time = (self.logger_cur_time-self.logger_start_time)/1000
@@ -58,11 +58,11 @@ class ubo_logger(QObject):
             self.logger_frame_count = 0
 
         if self.init_args["corc"]["on"] and hasattr(self, 'corc_response'):
-            print_text += f'CORC:{self.corc_response["corc_fps"]}\n'
+            # print_text += f'CORC:{self.corc_response["corc_fps"]}\n'
             self.corc_arr.append(self.corc_response["raw_data"]+[self.elapsed_time])
 
         if self.init_args["xsens"]["on"] and hasattr(self, 'xsens_response'):
-            print_text += f'XSENS:{self.xsens_response["xsens_fps"]}\n'
+            # print_text += f'XSENS:{self.xsens_response["xsens_fps"]}\n'
 
             timecode = self.xsens_response["timecode"]
             right = self.xsens_response["right"]["list"]
@@ -148,6 +148,18 @@ class ubo_logger(QObject):
         if hasattr(self, 'poll_timer'):
             self.poll_timer.stop()
         self.stopped.emit()
+    @Slot()
+    def redo_take(self):
+        # reset everything
+        if self.init_args["corc"]["on"]:
+            self.corc_arr = []
+        if self.init_args["xsens"]["on"]:
+            self.xsens_arr = []
+        self.logger_start_time = self.logger_timer.elapsed()
+        
+        self.take_num -= 1
+        self.take_text = f"{self.take_num}"
+        print(f"Redo {self.subject_id}-{self.patient_id}-{self.var_id} Take {self.take_text}")
     @Slot()
     def reset_logger(self):
         print(f"\nTake {self.take_text} Elapsed Time: {self.elapsed_time}")

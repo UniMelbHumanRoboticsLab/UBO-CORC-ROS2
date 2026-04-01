@@ -3,14 +3,16 @@ import subprocess, sys, os,json
 
 SCRIPT = os.path.join(os.path.dirname(__file__), "ubo_gui.py")
 
-var_num = 2
+var_num = 6
 exp_id = "exp1"
-patient_id = "p1"
-subject_id = "ying3"
+
+subject_id = input("subject id?: sub<>: ")
+patient_id = input("patient id?: p<>: ")
 
 print(f"Starting {exp_id} - {patient_id} - {subject_id}")
 
 for var in range(var_num):
+    # var = 5
     print("========================================================\n")
     go_on = input(f"Start var_{var+1}?: y/n: ")
     while (go_on != "y" and go_on != "n"):
@@ -60,3 +62,4 @@ for var in range(var_num):
     if p == "N":
         break
 print("\nExperiment Ended")
+print("\nPlease Ask How They Would Interact")
