@@ -7,7 +7,7 @@ from data_visual.plot_pkg import compare_multi_dim_data,plot_3d_submovements
 from scipy.interpolate import CubicSpline
 
 """low pass filter"""
-def lpf(time_array,data,ts=0.01,fc=50,datatype="trajectory",plot_results=False):
+def lpf(time_array,data,ts=0.01,fc=50,filter_type="low",datatype="trajectory",plot_results=False):
     from scipy.fft import fft,fftfreq
     from scipy.signal.windows import blackman
     from scipy.signal import butter,sosfreqz,sosfiltfilt
@@ -27,7 +27,10 @@ def lpf(time_array,data,ts=0.01,fc=50,datatype="trajectory",plot_results=False):
 
     xf = fftfreq(num_dtps, ts)[:num_dtps//2] # convert time to frequency domain
     window_fft = blackman(num_dtps) # define fft window
-    sos = butter(4, wc, 'low', analog=False, output='sos')
+    if filter_type=="low":
+        sos = butter(4, wc, 'low', analog=False, output='sos')
+    else:
+        sos = butter(4, [0.1/nyquist ,wc], 'bandpass', analog=False, output='sos')
     w, h = sosfreqz(sos, worN=8000, fs=fs)
 
     for i in range(dim):
@@ -52,16 +55,16 @@ def lpf(time_array,data,ts=0.01,fc=50,datatype="trajectory",plot_results=False):
     db_arr = np.array(db_arr).T
 
     if plot_results:
-        compare_multi_dim_data(
-            [xf, xf],
-            [fft_arr, fft_filt_arr],
-            dim,
-            ['noisy', 'filtered'],
-            'Frequency',
-            f'FFT {datatype}',
-            semilogx=True,
-            fig_label=f'FFT_{datatype}'
-        )
+        # compare_multi_dim_data(
+        #     [xf, xf],
+        #     [fft_arr, fft_filt_arr],
+        #     dim,
+        #     ['noisy', 'filtered'],
+        #     'Frequency',
+        #     f'FFT {datatype}',
+        #     semilogx=True,
+        #     fig_label=f'FFT_{datatype}'
+        # )
         # compare_multi_dim_data(
         #     [w],
         #     [db_arr],
@@ -95,14 +98,16 @@ def calc_mag(vectors):
 
 """segment submovements for current repetition"""
 def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,redo=True):
-
+    
+    data_path_split = data_path.split("/")
+    
     if submovement_num == 1:
         segment_type = "StartEnd"
     else:
         segment_type = "Submovements"
         
     if os.path.isfile(data_path):
-        print(f"{data_path[115:]} exists")
+        print(f"{data_path_split[-1]} exists")
         # read sbmvmt_indices from txt file
         with open(data_path, 'r') as f:
             lines = f.readlines()
@@ -110,22 +115,34 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
             print(f"{segment_type} Indices:", sbmvmt_indices)
         if redo:
             plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
-            plt.show(block=False)
-            if input("Good?:") == 'y':
+            key_state = {'pressed': None}
+            def on_key(event):
+                key_pressed = event.key
+                if key_pressed == 'w' or key_pressed == 'q':
+                    key_state['pressed'] = key_pressed
+                    plt.close("all")
+            
+            print("Good?: y/n (Press w or q)")
+
+            fig = plt.gcf()
+            fig.canvas.mpl_connect('key_press_event', on_key)
+            plt.show()
+            if key_state['pressed'] == 'w':
                 good = True
-                plt.close("all")
             else:
-                good = False  
-                plt.close("all")
+                good = False
         else:
             good = True
     else:
-        print(f"{data_path[115:]} DNE")
+        print(f"{data_path_split[-1]} DNE")
+        sbmvmt_indices = [0,-1]
         good = False
-
+        
+        
     while not good:
+        plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
         from mpl_point_clicker import clicker
-        fig,axs = compare_multi_dim_data([time_array], [hand_speed], 1, ['speed'], 'Time', f'Hand Speed',fig_label= data_path)
+        fig,axs = compare_multi_dim_data([time_array], [hand_speed], 1, ['speed'], 'Time', 'Hand Speed',fig_label= data_path)
         klicker = clicker(axs[0], ["event"], markers=["x"])
         plt.show(block=True)
         points = klicker.get_positions()['event']
@@ -136,17 +153,29 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
             sbmvmt_indices.append(idx)
         if submovement_num != 1:
             sbmvmt_indices = [0] + sbmvmt_indices + [len(time_array)-1]
+        sbmvmt_indices.sort()
 
         if len(sbmvmt_indices) != submovement_num+1:
             print("Restart Selection:",len(sbmvmt_indices), "selected, need", submovement_num+1)
         else:
-            print(f"Selected {segment_type} Indices:",sbmvmt_indices)
+            print(f"Selected {segment_type} Time:",np.array(time_array[sbmvmt_indices],dtype=float))
 
             plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
-            plt.show(block=False)
-            if input("Good?:") == 'y':
+            
+            key_state = {'pressed': None}
+            def on_key(event):
+                key_pressed = event.key
+                if key_pressed == 'w' or key_pressed == 'q':
+                    key_state['pressed'] = key_pressed
+                    plt.close("all")
+            
+            print("Good?: y/n (Press w or q)")
+
+            fig = plt.gcf()
+            fig.canvas.mpl_connect('key_press_event', on_key)
+            plt.show()
+            if key_state['pressed'] == 'w':
                 good = True
-                plt.close("all")
                 sbmvmt_indices = np.array(sbmvmt_indices,dtype=int)
                 indexed_time = np.array(time_array[sbmvmt_indices],dtype=float)
                 
@@ -156,7 +185,7 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
                     f.write("indexed_time: " + " ".join(map(str, indexed_time)) + "\n") 
             else:
                 good = False  
-                plt.close("all")
+
     
     if submovement_num != 1:
         indices_array = np.ones((time_array.shape[0],1))

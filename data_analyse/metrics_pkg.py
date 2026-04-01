@@ -1,20 +1,47 @@
 import numpy as np
 from scipy import integrate
 from dtaidistance import dtw_ndim,dtw
+from stats_pkg import compute_central_tendency
 
 q = ['trunk_ie','trunk_aa','trunk_fe',
 	'clav_dep_ev','clav_prot_ret',
 	'shoulder_fe','shoulder_aa','shoulder_ie',
 	'elbow_fe','elbow_ps']
+    
+def compute_norm_error(recon,comparator):
+    max_med_range = comparator["max"]-comparator["median"]
+    min_med_range = comparator["min"]-comparator["median"]
+    
+    denum = max_med_range.copy()
+    d = recon-comparator["median"]
+    d_neg = d<0
+    denum[d_neg] = min_med_range[d_neg]
+    
+    norm_error = d/denum
+    average_norm_error = np.mean(norm_error,axis=0)
+    return average_norm_error
 
-def print_results(item_list):
-    string = ""
-    for item in item_list:
-        string+=f"{item}|"
-    print(string)
-        
-def load_npy(data_path):
-    np.load(data_path,allow_pickle=True).tolist()
+def compute_norm_tau_peak_diff(recon,comparator):
+    peak_tau_recon = compute_tau_peak(recon,0)
+    p = np.array(comparator["samples"])
+    peak_tau_samples = compute_tau_peak(p,1)
+    mean_peak_tau,median_peak_tau,max_peak_tau,min_peak_tau = compute_central_tendency(peak_tau_samples)
+     
+    max_med_range = max_peak_tau-median_peak_tau
+    min_med_range = min_peak_tau-median_peak_tau
+      
+    denum = max_med_range.copy()
+    d = peak_tau_recon - median_peak_tau
+    d_neg = d<0
+    denum[d_neg] = min_med_range[d_neg]
+    norm_error = d/denum
+    
+    return norm_error
+
+def compute_coverage(recon,comparator):
+    coverage = (recon >= comparator["min"]) & (recon <= comparator["max"])
+    avg_coverage = np.mean(coverage,axis=0)*100
+    return avg_coverage
     
 def compute_impulse(time,torque):
     """ Compute impulse of each joint using trapezoidal integration """
@@ -26,14 +53,11 @@ def compute_impulse(time,torque):
         impulse.append(impulse_q)
     return np.array(impulse)
 
-def compute_tau_peak(torque):
+def compute_tau_peak(torque,axis):
     """ Compute peak torque of each joint """
-    peak_tau = np.max(np.abs(torque),axis=0)
-    # for i in range(torque.shape[1]):
-    #     print("tau peak",q[i],peak_tau[i])
+    peak_tau = np.max(np.abs(torque),axis=axis)
     return peak_tau
 
-# Evaluate Mean DTW Distance Cost for all demos and generated trajectory
 def compute_dtw(ref_traj,target_traj):
     # convert to double data type
     ref_traj = ref_traj.astype(np.double)
