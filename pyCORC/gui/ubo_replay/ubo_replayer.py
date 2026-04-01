@@ -13,6 +13,7 @@ rft_key = ["clav","ua","fa"]
 
 class ubo_replayer(QObject):
     time_ready = Signal(dict)
+    traj_ready = Signal(list)
     finish_save = Signal()
     stopped = Signal()
     def __init__(self,init_args,session_data):
@@ -22,6 +23,8 @@ class ubo_replayer(QObject):
         self.patient_id = session_data["patient_id"]
         self.subject_id = session_data["subject_id"]
         self.var_id = session_data["var_id"]
+        self.var_num = int(self.var_id[-1])
+        # print(self.var_num)
         self.take_num = session_data["take_num"]
         self.take_text = "Bias"
         self.subject_path = f"logs/pycorc_recordings/{self.exp_id}/{self.patient_id}/{self.subject_id}"
@@ -29,12 +32,10 @@ class ubo_replayer(QObject):
         body_path = os.path.join(os.path.dirname(__file__), '../../..',f'logs/pycorc_recordings/{self.exp_id}/subject_measurements/{self.subject_id}')
         self.body_params_rbt,self.ft_grav,self.removed_bias = get_subject_params(body_path)
         self.init_bias = np.load(f"{body_path}/UBOAvgBias.npy")
-        self.save_path = os.path.join(os.path.dirname(__file__), '../../..',f"{self.subject_path}/{self.var_id}/raw")
-        self.var_bias = np.load(f"{self.save_path}/UBOAvgBias.npy")
         for i,key in enumerate(rft_key):
             print(f"Init Bias {key}:\t{self.init_bias[i*6:(i+1)*6]}")
-            print(f"Variation Bias {key}:\t{self.var_bias[i*6:(i+1)*6]}")
         print()
+        
         
         self.skeleton = ub(self.body_params_rbt,model="ubo",arm_side="right")
         
@@ -51,8 +52,11 @@ class ubo_replayer(QObject):
         print("UBO Replayer Started")
         self.read_logged_data()
     def read_logged_data(self):
-        # read logged data        
+        self.save_path = os.path.join(os.path.dirname(__file__), '../../..',f"{self.subject_path}/{self.var_id}/raw")
         self.data = pd.read_csv(f"{self.save_path}/UBORecord{self.take_num}Log.csv")
+        self.var_bias = np.load(f"{self.save_path}/UBOAvgBias.npy")
+        
+        # read logged data        
         self.total_frames = len(self.data) if self.init_args["corc"]["on"]==1 else 1000
         self.frame_id = 0
         if self.init_args["corc"]["on"]:
@@ -69,6 +73,11 @@ class ubo_replayer(QObject):
             self.right_xsens_data = self.data[[f"{joint}_right" for joint in joints]].values  # last 7 columns are CORC data
             self.left_xsens_data = self.data[[f"{joint}_left" for joint in joints]].values  # last 7 columns are CORC data
             self.timecode = self.data[["timecode"]].values
+        
+        self.traj_ready.emit(self.right_xsens_data)
+        print(f"\n{self.exp_id}/{self.patient_id}/{self.subject_id}/{self.var_id}/{self.take_num}\nLogged Time: {self.corc_data[-1,0]}")
+        for i,key in enumerate(rft_key):
+            print(f"Variation Bias {key}:\t{self.var_bias[i*6:(i+1)*6]}")
     """
     Replayer Callback
     """
@@ -82,6 +91,9 @@ class ubo_replayer(QObject):
         robot_ee = self.skeleton.fkine(right)
 
         processed = [0]
+        print_text += f"{self.exp_id}/{self.patient_id}/{self.subject_id}/{self.var_id}\nLogged Time: {self.corc_data[-1,0]}\n"
+        print_text += f"Replaying Take {self.take_num}\n"
+        print_text += f"Logger Time Elapsed:{corc_data[0]}\n"
         for i in range(NUM_RFT):
             # get initial_bias
             removed_bias = np.array(self.removed_bias[rft_key[i]])
@@ -113,11 +125,11 @@ class ubo_replayer(QObject):
             self.replayer_start_time = self.replayer_timer.elapsed()
 
         # update FPS
-        print_text = f"Replaying {self.take_num}\n"
+        print_text = ""
         self.replayer_frame_count += 1
         self.replayer_cur_time = self.replayer_timer.elapsed()
         self.elapsed_time = (self.replayer_cur_time-self.replayer_start_time)/1000
-        print_text += f"Logger Time Elapsed:{self.elapsed_time}\n"
+        
 
         if self.replayer_cur_time-self.replayer_last_time >= 1000:
             self.replayer_fps = self.replayer_frame_count * 1000 / (self.replayer_cur_time-self.replayer_last_time)
@@ -133,13 +145,13 @@ class ubo_replayer(QObject):
     """
     @Slot()
     def start_take(self):
-        
-        
         self.poll_timer = QTimer()
         self.poll_timer.setTimerType(Qt.PreciseTimer)
         self.poll_timer.timeout.connect(self.replay_current_data)
         self.poll_timer.start(int(1/100*1000))
         self.replayer_start_time = self.replayer_timer.elapsed()
+        
+        self.traj_ready.emit(self.right_xsens_data)
 
     """
     External Signals Callbacks
@@ -159,15 +171,34 @@ class ubo_replayer(QObject):
     @Slot()
     def next_take(self):
         if hasattr(self, 'poll_timer'):
-            try:
+            if self.take_num <4:
                 self.take_num += 1
-                self.read_logged_data()
-            except Exception:
+            else:
+                print("============================================")
                 self.take_num = 1
+                if self.var_num < 6:
+                    self.var_num += 1
+                else:
+                    self.var_num = 1
+                    
+                self.var_id = f"var_{self.var_num}"
+            self.read_logged_data()
+            self.replayer_start_time = self.replayer_timer.elapsed()
+
+    @Slot()
+    def next_var(self):
+        if hasattr(self, 'poll_timer'):
+            if self.var_num < 6:
+                self.var_num += 1
+                self.take_num = 1
+                self.var_id = f"var_{self.var_num}"
                 self.read_logged_data()
-                print(f"Restart {self.var_id}")
-            finally:
-                self.replayer_start_time = self.replayer_timer.elapsed()
+            else:
+                self.var_num = 1
+                self.take_num = 1
+                self.var_id = f"var_{self.var_num}"
+                self.read_logged_data()
+            self.replayer_start_time = self.replayer_timer.elapsed()
 
 
 

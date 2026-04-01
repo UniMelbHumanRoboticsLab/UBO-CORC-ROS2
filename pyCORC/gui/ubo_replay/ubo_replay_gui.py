@@ -47,7 +47,7 @@ class ubo_replay_gui(pycorc_gui):
                             'shoulder_aa':0,
                             'shoulder_ie':0,
                             'elbow_fe':0,
-                            'elbow_ps':0,
+                            'elbow_ps':-170,
                             'wrist_fe':0,
                             'wrist_dev':0
                         }
@@ -96,9 +96,11 @@ class ubo_replay_gui(pycorc_gui):
             "left":{}
         }
         # init xsens skeleton for future use
+        self.hand_traj = self.init_line(points=np.vstack(([0,0,0],[1,1,1])),color="white")
         for side,color in zip(["right","left"],["purple", "orange"]):
             self.skeleton[side]["ub_xsens"] = ub(self.body_params_rbt,model="ubo",arm_side=side)
-            robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine([0]*12)
+            print(list(self.place_holder_angles.values()))
+            robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(list(self.place_holder_angles.values()))
             if self.gui_args["on"] and self.gui_args["3d"]:
                 body = self.init_line(points=robot_joints.t,color=color)
                 ees = [self.init_frame(pos=ee_pose.t,rot=ee_pose.R*0.03) for ee_pose in robot_ee]
@@ -130,8 +132,11 @@ class ubo_replay_gui(pycorc_gui):
             # to go to next take logging
             next_log = QShortcut("Enter", self)
             next_log.activated.connect(self.replayer_worker.next_take)
+            # to go to next take logging
+            next_var = QShortcut("N", self)
+            next_var.activated.connect(self.replayer_worker.next_var)
             
-        close = QShortcut("Q", self)
+        close = QShortcut("Z", self)
         close.activated.connect(self.gui_timer.stop)
         close.activated.connect(self.close_workers)
     def init_IOs(self):
@@ -163,6 +168,8 @@ class ubo_replay_gui(pycorc_gui):
             self.replayer_worker.moveToThread(self.replayer_thread)
             # connect replayer to sensor gui
             self.replayer_worker.time_ready.connect(self.update_replayer,type=Qt.ConnectionType.QueuedConnection)
+            # connect hand_traj to sensor gui
+            self.replayer_worker.traj_ready.connect(self.update_hand_traj,type=Qt.ConnectionType.QueuedConnection)
             # connect thread start to add opened threads  
             self.replayer_thread.started.connect(self.add_opened_threads)
             # connect replayer finished saving to close workers
@@ -189,6 +196,10 @@ class ubo_replay_gui(pycorc_gui):
             self.corc_response = self.replayer_response["corc"]
         if self.replayer_response["xsens"]:
             self.xsens_response = self.replayer_response["xsens"]
+    @Slot(list)
+    def update_hand_traj(self,hand_traj_response):
+        self.update_line(self.hand_traj,self.skeleton["right"]["ub_xsens"].ub_model[0].fkine(np.deg2rad(hand_traj_response)).t)
+            
         
     """
     Update Main GUI Helper Functions and Callback
@@ -293,9 +304,9 @@ if __name__ == "__main__":
                 "session_data":{
                     "exp_id":"exp1",
                     "patient_id":"p1",
-                    "subject_id":"ying3",
-                    "var_id":"var_2",
-                    "take_num":1,
+                    "subject_id":"ying2",
+                    "var_id":"var_1",
+                    "take_num":3,
                 }
                }
         
@@ -306,8 +317,7 @@ if __name__ == "__main__":
     w = ubo_replay_gui(init_args)
     title_str = f"UBO-CORC-{init_args['session_data']['exp_id']}"+"-"
     title_str += init_args['session_data']['patient_id']+"-"
-    title_str += init_args['session_data']['subject_id']+"-"
-    title_str += init_args['session_data']['var_id']+" "
+    title_str += init_args['session_data']['subject_id']
     w.setWindowTitle(title_str)
     w.show()
 
