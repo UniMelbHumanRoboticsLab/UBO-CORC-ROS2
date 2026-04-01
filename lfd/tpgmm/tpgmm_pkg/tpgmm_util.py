@@ -32,12 +32,13 @@ def get_optim_nbGauss(data):
 
     optim_n_gauss = 1000
     n_components = 5
+    current_best_score = 1e-20
     param_grid = {
         "n_components": range(1, n_components+1),
         "covariance_type": ["full"],
     }
+    
     all_results_df = pd.DataFrame()
-
     while n_components <= 100:
         grid_search = GridSearchCV(
             GMM_sk(init_params='k-means++',warm_start=True,max_iter=200), 
@@ -47,17 +48,23 @@ def get_optim_nbGauss(data):
         grid_search.fit(data_scaled)
 
         optim_n_gauss = grid_search.best_params_['n_components']
+        optim_mean_score = grid_search.best_score_
         grid_search_df = pd.DataFrame(grid_search.cv_results_)[
             ["param_n_components", "param_covariance_type", "mean_test_score"]
         ]
         all_results_df = pd.concat([all_results_df, grid_search_df], ignore_index=True)
-
-        if optim_n_gauss < n_components-3:
-            print(f"\n\nSelected GMM (scaled): {grid_search.best_params_['covariance_type']} model, {optim_n_gauss} components")
+        
+        # either optimal number of gaussian is far from the max limit or the score has converged
+        if optim_n_gauss < n_components-3 or (optim_mean_score-current_best_score)/current_best_score*100 < 10:
+            print(f"Previous best:{current_best_score:.4f}, Current best: {optim_mean_score:.4f}, BIC Change: {(optim_mean_score-current_best_score)/current_best_score*100 :.4f}")
+            print(f"Selected GMM (scaled): {grid_search.best_params_['covariance_type']} model, {optim_n_gauss} components")
             break
         else:
             n_components += 5
-            print(f"\n{optim_n_gauss} is too close to the limit. Reoptimizing from {optim_n_gauss-3} to {n_components} n_components")
+            print(f"{optim_n_gauss} is too close to the limit.")
+            print(f"Previous best:{current_best_score:.4f}, Current best: {optim_mean_score:.4f}, BIC Change: {(optim_mean_score-current_best_score)/current_best_score*100 :.4f}")
+            print(f"Optimizing from {optim_n_gauss-3} to {n_components+1}\n")
+            current_best_score = optim_mean_score
             param_grid = {
                 "n_components": range(optim_n_gauss-3, n_components+1),
                 "covariance_type": ["full"],
@@ -72,13 +79,13 @@ def get_optim_nbGauss(data):
         }
     )
     all_results_df.sort_values(by="BIC score").head()
-    sns.catplot(
-        data=all_results_df,
-        kind="bar",
-        x="Number of components",
-        y="BIC score",
-        hue="Type of covariance",
-    )
+    # sns.catplot(
+    #     data=all_results_df,
+    #     kind="bar",
+    #     x="Number of components",
+    #     y="BIC score",
+    #     hue="Type of covariance",
+    # )
     
     optim_n_gauss = grid_search.best_params_['n_components']
     return optim_n_gauss
@@ -154,21 +161,18 @@ def plotPegs_n_Traj(num_of_frames,sampleParam,expected_data,ax):
 """
 save results for future comparison
 """
-def save_results(subject_id,time_list,gt_list,recon_list,train_mean_per_var,id_list,filename):
+def save_results(subject_id,time_list,recon_list,comparators_per_var,id_list,filename):
     compile_data = []
     # save the results as follows (time,GT,recon,comparator,sample id)
-    for time,gt,recon,comparator,sample_id in zip(time_list,gt_list,recon_list,train_mean_per_var,id_list):
-        sample_id = sample_id.split(".")
+    for time,recon,comparator,sample_id in zip(time_list,recon_list,comparators_per_var,id_list):
+        # sample_id = sample_id.split(".")
         compile_data.append(
             {
                 "subject_id":subject_id,
-                "time":time,
-                "thera":gt,
+                "var-id-case":sample_id,
+                # "time":time,
                 "recon":recon,
                 "compare":comparator,
-                "var":sample_id[0],
-                "id":sample_id[1],
-                "case":sample_id[2]                
                 }
             )
     np.save(filename, np.array(compile_data,dtype=dict))

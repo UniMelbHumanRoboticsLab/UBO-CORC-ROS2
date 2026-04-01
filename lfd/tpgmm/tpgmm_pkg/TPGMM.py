@@ -74,12 +74,28 @@ class TPGMM:
                 MuCurFrame = kmeansplusplus_initialization(
                     dataCurFrame, self.num_of_gauss
                 )
+
+                average_distances = np.std(dataCurFrame, axis=0)
+                SigmaCurFrame = np.empty((self.num_of_gauss, self.num_of_dim, self.num_of_dim))
+                SigmaCurFrame[:]  = (np.eye(self.num_of_dim) *
+                                          (average_distances / self.num_of_gauss) ** 2)
                 
-                # initialize the covariance for current frame
-                SigmaCurFrame = covariance_initialization(
-                    dataCurFrame,self.num_of_gauss)
+                # # initialize the covariance for current frame
+                # SigmaCurFrame = covariance_initialization(
+                #     dataCurFrame,self.num_of_gauss)
+                
+                # n_components, n_features = means.shape
+                # covariances = xp.empty(
+                #     (n_components, n_features, n_features), device=device_, dtype=X.dtype
+                # )
+                # for k in range(n_components):
+                #     diff = X - means[k, :]
+                #     covariances[k, :, :] = ((resp[:, k] * diff.T) @ diff) / nk[k]
+                #     _add_to_diagonal(covariances[k, :, :], reg_covar, xp)
+                # return covariances
 
                 for j in range(self.num_of_gauss):
+                    # print(j)
                     self.Mu[:,i,j] = MuCurFrame[j]
                     self.Sigma[:,:,i,j] = SigmaCurFrame[j] + np.eye(self.num_of_dim)*self.diagRegFact
             print(f"Init Priors:\t{self.priors}\tSum:{np.sum(self.priors)}\n")
