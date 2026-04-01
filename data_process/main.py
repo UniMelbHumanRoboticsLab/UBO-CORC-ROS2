@@ -71,9 +71,15 @@ for p in range(1,4):
             bias_path = f'{subject_path}/{var}/raw'
             avg_var_bias = np.load(f"{bias_path}/UBOAvgBias.npy")
             print(f"\n{var}_install_Bias:",avg_var_bias,"\n")
-        
+            
+            # # uncomment to remove all processed folders to redo the processing
+            # exist = os.path.exists(f'{subject_path}/{var}/processed/')
+            # import shutil
+            # if exist:
+            #     shutil.rmtree(f'{subject_path}/{var}/processed/', ignore_errors=False)
+            
             for rep in range(1,session_data["num_rep"]+1):
-                exist = os.path.exists(f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt') and os.path.exists(f'{subject_path}/{var}/processed/index/UBOStartEnd{rep}.txt') 
+                # exist = os.path.exists(f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt') and os.path.exists(f'{subject_path}/{var}/processed/index/UBOStartEnd{rep}.txt') 
                 exist = os.path.exists(f'{subject_path}/{var}/processed/UBORecord{rep}Log.csv')
 
                 # check if data processed?
