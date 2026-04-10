@@ -49,10 +49,11 @@ class pycorc_gui(QtWidgets.QMainWindow):
         # Get all available screens
         app = QtWidgets.QApplication.instance()
         screens = app.screens()
-        # Use the second screen (index 1) if available
+        # set to the second screen dimension (index 1) if available
         if len(screens) > 1:
-            second_screen = screens[0]
+            second_screen = screens[1]
             screen_geometry = second_screen.geometry()
+            self.setScreen(second_screen)
             self.setGeometry(screen_geometry)
         # self.showFullScreen()
 
