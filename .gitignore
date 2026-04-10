@@ -2,14 +2,11 @@ build/
 install/
 log/
 logs/
-ws_plotjuggler/
+experiment_documents/
+pictures/
 .vscode/c_cpp_properties.json
 .vscode/settings.json
-plotjuggler_layout.xml
 *.pyc
-*.png
-*.docx
-*.mp4
 robotics-toolbox-python/
 *.nbc
 *.nbi
