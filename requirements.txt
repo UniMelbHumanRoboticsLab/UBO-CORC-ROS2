@@ -76,7 +76,6 @@ tornado==6.5.4
 tqdm==4.67.3
 traitlets==5.14.3
 typing_extensions==4.15.0
-virtualenv==20.37.0
 vispy==0.15.2
 wcwidth==0.6.0
 websockets==16.0
