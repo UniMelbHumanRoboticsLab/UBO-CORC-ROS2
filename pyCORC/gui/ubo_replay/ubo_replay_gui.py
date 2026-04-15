@@ -136,7 +136,7 @@ class ubo_replay_gui(pycorc_gui):
             next_var = QShortcut("N", self)
             next_var.activated.connect(self.replayer_worker.next_var)
             
-        close = QShortcut("Z", self)
+        close = QShortcut("E", self)
         close.activated.connect(self.gui_timer.stop)
         close.activated.connect(self.close_workers)
     def init_IOs(self):
