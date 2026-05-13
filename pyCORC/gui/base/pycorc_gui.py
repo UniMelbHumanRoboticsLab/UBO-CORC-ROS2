@@ -53,6 +53,8 @@ class pycorc_gui(QtWidgets.QMainWindow):
         if len(screens) > 1:
             second_screen = screens[1]
             screen_geometry = second_screen.geometry()
+            (tl_x,tl_y,br_x,br_y) = screen_geometry.getCoords()
+            screen_geometry.setCoords(int(br_x/2),0,br_x,br_y)
             self.setScreen(second_screen)
             self.setGeometry(screen_geometry)
         # self.showFullScreen()

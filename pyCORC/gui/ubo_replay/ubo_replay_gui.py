@@ -99,7 +99,6 @@ class ubo_replay_gui(pycorc_gui):
         self.hand_traj = self.init_line(points=np.vstack(([0,0,0],[1,1,1])),color="white")
         for side,color in zip(["right","left"],["purple", "orange"]):
             self.skeleton[side]["ub_xsens"] = ub(self.body_params_rbt,model="ubo",arm_side=side)
-            print(list(self.place_holder_angles.values()))
             robot_joints, robot_ee = self.skeleton[side]["ub_xsens"].ub_fkine(list(self.place_holder_angles.values()))
             if self.gui_args["on"] and self.gui_args["3d"]:
                 body = self.init_line(points=robot_joints.t,color=color)
@@ -130,7 +129,7 @@ class ubo_replay_gui(pycorc_gui):
             stop_log = QShortcut("C", self)
             stop_log.activated.connect(self.replayer_worker.stop_take)
             # to go to next take logging
-            next_log = QShortcut("Enter", self)
+            next_log = QShortcut("W", self)
             next_log.activated.connect(self.replayer_worker.next_take)
             # to go to next take logging
             next_var = QShortcut("N", self)
@@ -304,7 +303,7 @@ if __name__ == "__main__":
                 "session_data":{
                     "exp_id":"exp1",
                     "patient_id":"p1",
-                    "subject_id":"ying2",
+                    "subject_id":"sub3",
                     "var_id":"var_1",
                     "take_num":3,
                 }

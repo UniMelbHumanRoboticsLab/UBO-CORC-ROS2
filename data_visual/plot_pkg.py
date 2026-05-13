@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 # plt.rcParams.update({'font.size': 22})
 from matplotlib.patches import Patch, Rectangle
 from matplotlib.lines import Line2D
@@ -11,7 +12,7 @@ from data_process.file_util_pkg import split_reps
 from data_analyse.stats_pkg import compute_central_tendency
 
 
-def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_type="tau",fig_label="Train",plot=False):
+def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_type="tau",fig_label="Train",plot=False,stats=True):
     # isolate each variation
     unique_var_id = []
     for x in var_id_list:
@@ -34,15 +35,16 @@ def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_t
             legend=False,
             split=rep_split
         )
-        plot_stats(
-            time_list[0],
-            data_list_per_var,
-            fig=fig,
-            axs=ax,
-            labels=[f"{x}.{fig_label}" for x in unique_var_id],
-            relimit=True,
-            split=rep_split
-        )
+        if stats:
+            plot_stats(
+                time_list[0],
+                data_list_per_var,
+                fig=fig,
+                axs=ax,
+                labels=[f"{x}.{fig_label}" for x in unique_var_id],
+                relimit=True,
+                split=rep_split
+            )
         interactive_plot(fig,ax)
     return data_list_per_var,unique_var_id
 
@@ -114,7 +116,7 @@ def compare_multi_dim_data(x_list:list,data_list:list,
                            sharex:bool=True,semilogx:bool=False,legend:bool=True,
                            fig_label:str="Take1",
                            show_stats:bool=False,show_zero_cross:bool=False,
-                           prev_fig=None,prev_ax=None):
+                           prev_fig=None,prev_ax=None,loc="+2000+100"):
     colors = get_n_colors(len(x_list),split,shuffle)
     # init fig, axes
     if prev_fig is not None and prev_ax is not None:
@@ -122,7 +124,7 @@ def compare_multi_dim_data(x_list:list,data_list:list,
         axs = prev_ax
     else:
         fig = plt.figure(figsize=(8, 5),num=fig_label,tight_layout=True)
-        fig.canvas.manager.window.wm_geometry("+100+100")
+        fig.canvas.manager.window.wm_geometry(loc)
         axs = []
     
         # adjust the dimension labels for specific dimensions
@@ -296,6 +298,7 @@ def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None,label="3D
 
     if fig is None or ax is None:
         fig, ax = plt.subplots(figsize=(15, 5), subplot_kw={'projection': '3d'},num=label,tight_layout=True)
+        
 
         ax.set_xlim([-0.9, 0.9])
         ax.set_ylim([-0.9, 0.9])
@@ -319,19 +322,24 @@ def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None,label="3D
 
 """ plot submovements for a single 3d trajectory"""
 def plot_3d_submovements(traj,sbmvmt_indices):
-    fig, ax = plt.subplots(figsize=(5,5), subplot_kw={'projection': '3d'},tight_layout=True)
-    fig.canvas.manager.window.wm_geometry("+1000+100")
-    ax.set_xlim([-0.9, 0.9])
-    ax.set_ylim([-0.9, 0.9])
-    ax.set_zlim([-0.2, 1.6])
+    fig, ax = plt.subplots(figsize=(5,5), subplot_kw={'projection': '3d'},tight_layout=True,num="Hand Traj")
+    fig.canvas.manager.window.wm_geometry("+2900+100")
+    mpl.rcParams['axes3d.mouserotationstyle'] = "azel"
+    
+    x = traj[:,0]-traj[0,0]
+    y = traj[:,1]-traj[0,1]
+    z = traj[:,2]-traj[0,2]
+    
+    min_b = np.min([np.min(x),np.min(y),np.min(z)])
+    max_b = np.max([np.max(x),np.max(y),np.max(z)])
+    
+    ax.set_xlim([min_b, max_b])
+    ax.set_ylim([min_b, max_b])
+    ax.set_zlim([min_b, max_b])
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')
     ax.set_title('3D Trajectory')
-
-    x = traj[:,0]
-    y = traj[:,1]
-    z = traj[:,2]
 
     n_colors = len(sbmvmt_indices)
     colors = get_n_colors(n_colors)
@@ -344,8 +352,11 @@ def plot_3d_submovements(traj,sbmvmt_indices):
         else:
             end = -1
         ax.plot(x[start:end],y[start:end],z[start:end],linestyle='-', color=colors[i])
-    ax.legend()
+        
+    if len(sbmvmt_indices) > 0:
+        ax.legend()
     plt.tight_layout()
+    return ax,fig
 
 """ plot zero velocity crossings for 1D velocity data"""
 def plot_velocity_zero_crossings(time, velocity, ax):

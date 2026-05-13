@@ -6,8 +6,8 @@ SCRIPT = os.path.join(os.path.dirname(__file__), "ubo_replay_gui.py")
 var_num = 6
 exp_id = "exp1"
 
-patient_id = "p1"#input("patient id?: sub<>: ")
-for p in range(3,5):
+patient_id = "p1"
+for p in range(21,25):
     subject_id = f"sub{p}"
     
     print(f"Starting {exp_id} - {patient_id} - {subject_id}")

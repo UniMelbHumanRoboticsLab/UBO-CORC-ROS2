@@ -9,21 +9,23 @@ np.set_printoptions(
 )
 
 sys.path.append(os.path.join(os.path.dirname(__file__)))
-from post_process_pkg import lpf,calc_fixed_diff,calc_mag,segment_sbmvmts,rescale
+from post_process_pkg import lpf,calc_fixed_diff,calc_mag,segment_sbmvmts,rescale,align_dtw,warp_target_to_ref
 from file_util_pkg import get_raw_data,separate_train_test_val,create_dir
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from data_visual.plot_pkg import compare_multi_dim_data,plot_3d_trajectory,split_plot_all
+from data_visual.plot_pkg import compare_multi_dim_data,plot_3d_trajectory,split_plot_all,interactive_plot
 from pyCORC.pycorc_io.xsens.ub_pckg.ub import ub
 from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
+import FreeSimpleGUI as sg
 
-for p in range(1,4):
+
+for p in range(2,3):
     if p == 1:
         sm_num = 2
     else:
         sm_num=4
         
-    for sub in range(3,5):
+    for sub in range(11,25):
         """ init session parameters and perform train / test / validation spliting"""
         session_data = {
             "exp_id":"exp1",
@@ -63,7 +65,7 @@ for p in range(1,4):
         full_data_dict = {}
         time_list,q_traj_list,qdot_traj_list,tau_traj_list,hand_3d_traj_list,sbmvmt_list,rep_label_list = [],[],[],[],[],[],[]
         fc = 10  # cut-off frequency
-        fs = 100
+        fs = 100 # resample frequency
         dt = 1/fs
         redo_index = False
         for var in session_data["variants"]:
@@ -72,13 +74,21 @@ for p in range(1,4):
             avg_var_bias = np.load(f"{bias_path}/UBOAvgBias.npy")
             print(f"\n{var}_install_Bias:",avg_var_bias,"\n")
             
+            if os.path.isfile(f"{bias_path}/dtw_order.csv"):
+                dtw_order = np.loadtxt(f"{bias_path}/dtw_order.csv", delimiter=',', dtype=int)
+                print(f"Found DTW Order: {dtw_order}")
+            else:
+                dtw_order = np.random.permutation([1, 2, 3, 4])
+                print(f"DTW Order: {dtw_order}")
+                np.savetxt(f"{bias_path}/dtw_order.csv", dtw_order, delimiter=',', fmt='%d')
+        
             # # uncomment to remove all processed folders to redo the processing
             # exist = os.path.exists(f'{subject_path}/{var}/processed/')
             # import shutil
             # if exist:
             #     shutil.rmtree(f'{subject_path}/{var}/processed/', ignore_errors=False)
-            
-            for rep in range(1,session_data["num_rep"]+1):
+            # assert 0
+            for n,rep in enumerate(dtw_order):
                 # exist = os.path.exists(f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt') and os.path.exists(f'{subject_path}/{var}/processed/index/UBOStartEnd{rep}.txt') 
                 exist = os.path.exists(f'{subject_path}/{var}/processed/UBORecord{rep}Log.csv')
 
@@ -97,9 +107,10 @@ for p in range(1,4):
                     qdot_traj_rad = full_df[qdot].values
                     hand_pos_traj = full_df[["x","y","z"]].values
                     tau_total = full_df[tau].values
-                    indices_traj = full_df['index'].values
-                    
-                    if var == session_data["variants"][0] and rep == 1:
+                    indices_traj = full_df['index'].values[:,np.newaxis]
+                    if n == 0:
+                        reference_interaction = np.hstack((q_traj_rad,qdot_traj_rad,tau_total))
+                    if var == session_data["variants"][0] and n == 0:
                         time_data       = time_data_norm
                         num_samples     = time_data.shape[0]
                 else:
@@ -154,7 +165,7 @@ for p in range(1,4):
                         taus_traj[rft_key]["filtered"] = lpf(time_data_unscaled,taus_traj[rft_key]["raw"],ts=dt_unscaled,fc=fc,datatype=f"tau_{rft_key}_{var}-Rep{rep}",plot_results=plot_results)
                     taus_traj["total"]["filtered"] = lpf(time_data_unscaled,taus_traj["total"]["raw"],ts=dt_unscaled,fc=fc,datatype=f"tau_total_{var}-Rep{rep}",plot_results=plot_results)
                     
-                    """ Downsample """
+                    """ Uniform Resampling """
                     # downsample for easier model learning
                     plot_results = False
                     time_data       = np.arange(time_data_unscaled[0],time_data_unscaled[-1]+dt_unscaled,1/fs,dtype=float)
@@ -170,26 +181,29 @@ for p in range(1,4):
                     # create the following subdirectories if needed
                     create_dir(f'{subject_path}/{var}/processed/index')
                     # extract active movement
-                    _,start_end_indices = segment_sbmvmts(time_data,hand_pos_traj,hand_speed,1,data_path=f'{subject_path}/{var}/processed/index/UBOStartEnd{rep}.txt',redo=redo_index)
+                    _,start_end_indices = segment_sbmvmts(time_data,hand_pos_traj,hand_speed,1,data_path=f'{subject_path}/{var}/processed/index/UBOStartEnd{rep}.txt',redo=False)
+                    actual_time_data = time_data[start_end_indices[0]:start_end_indices[-1]]
                     time_data       = time_data[start_end_indices[0]:start_end_indices[-1]]-time_data[start_end_indices[0]]
                     corc_data       = corc_data[start_end_indices[0]:start_end_indices[-1],:]
                     q_traj          = q_traj[start_end_indices[0]:start_end_indices[-1],:10] # from here just collect the first 10 joints
+                    q_traj_rad      = np.deg2rad(q_traj)
                     qdot_traj       = qdot_traj[start_end_indices[0]:start_end_indices[-1],:10]
                     hand_pos_traj   = hand_pos_traj[start_end_indices[0]:start_end_indices[-1],:]
                     hand_speed      = hand_speed[start_end_indices[0]:start_end_indices[-1],:]
                     for rft_key in rft_keys+["total"]:
                         taus_traj[rft_key]["filtered-rescaled"] = taus_traj[rft_key]["filtered-rescaled"][start_end_indices[0]:start_end_indices[-1],:]
-            
-                    # use first demo as the reference for time alignment
-                    if var == session_data["variants"][0] and rep == 1:
+                    
+                    """ Time Normalization """
+                    # use first var first demo as the reference for overall time alignment
+                    if var == session_data["variants"][0] and n == 0:
                         time_data_norm  = time_data / time_data[-1]
                         time_data       = time_data_norm
                         num_samples     = time_data.shape[0]
                     else:
                         time_data       = time_data / time_data[-1]
                         time_data_norm  = np.linspace(0, 1, num_samples)
+                        actual_time_data = np.linspace(actual_time_data[0], actual_time_data[-1], num_samples)
             
-                    """ Time Normalization """
                     # rescale all data to the reference demo time
                     plot_results = False # check if time normalization fucks up the data
                     corc_data       = rescale(time_data, corc_data,     time_data_norm, datatype=f"wrenches_norm_{var}-Rep{rep}",   plot_results=plot_results)
@@ -202,11 +216,71 @@ for p in range(1,4):
                     hand_speed      = rescale(time_data, hand_speed,    time_data_norm, datatype=f"hand_speed_norm_{var}-Rep{rep}", plot_results=plot_results)
                     for rft_key in rft_keys+["total"]:
                         taus_traj[rft_key]["filtered-rescaled"] = rescale(time_data, taus_traj[rft_key]["filtered-rescaled"], time_data_norm, datatype=f"tau_norm_{rft_key}_{var}-Rep{rep}",    plot_results=plot_results)
+                    
+                    """ DTW Realignment """
+                    # use first demo as the reference for the DTW alignment
+                    if n == 0:
+                        reference_interaction = np.hstack((q_traj_rad,qdot_traj_rad,taus_traj["total"]["filtered-rescaled"]))
+                        target_interaction = np.hstack((q_traj_rad,qdot_traj_rad,taus_traj["total"]["filtered-rescaled"]))
+                    else:
+                        target_interaction = np.hstack((q_traj_rad,qdot_traj_rad,taus_traj["total"]["filtered-rescaled"]))
+                    
+                    align_dim = 20
+                    placehold = sg.popup('',location=(1550,300),non_blocking=True)  
+                    paths = align_dtw(reference_interaction[:,0:align_dim],target_interaction[:,0:align_dim])
+                    
+                    f1,a1 = compare_multi_dim_data(
+                            [actual_time_data,actual_time_data,actual_time_data],
+                            [q_traj_rad,warp_target_to_ref(reference_interaction,q_traj_rad,paths),reference_interaction[:,0:10]],
+                            10,
+                            ["ori","dtw","ref"],
+                            'Time(s)',
+                            "q_rad",
+                            sharex=True,
+                            semilogx=False,
+                            fig_label=f"joint angle rad {align_dim}",
+                            show_stats=False,loc="+2000+800")
+                    f2,a2 = compare_multi_dim_data(
+                            [actual_time_data,actual_time_data,actual_time_data],
+                            [qdot_traj_rad,warp_target_to_ref(reference_interaction,qdot_traj_rad,paths),reference_interaction[:,10:20]],
+                            10,
+                            ["ori","dtw","ref"],
+                            'Time(s)',
+                            "qdot_rad",
+                            sharex=True,
+                            semilogx=False,
+                            fig_label=f"joint angle vel rad/s {align_dim}",
+                            show_stats=False,loc="+2900+800")
+                    f3,a3 = compare_multi_dim_data(
+                            [actual_time_data,actual_time_data,actual_time_data],
+                            [taus_traj["total"]["filtered-rescaled"],warp_target_to_ref(reference_interaction,taus_traj["total"]["filtered-rescaled"],paths),reference_interaction[:,20:]],
+                            10,
+                            ["ori","dtw","ref"],
+                            'Time(s)',
+                            "tau",
+                            sharex=True,
+                            semilogx=False,
+                            fig_label=f"joint torque {align_dim}",
+                            show_stats=False,loc="+3800+800")
+                    interactive_plot(f1,a1)
+                    interactive_plot(f2,a2)
+                    interactive_plot(f3,a3)
+                    
+                    corc_data       = warp_target_to_ref(reference_interaction,corc_data,paths)
+                    q_traj_rad      = warp_target_to_ref(reference_interaction,q_traj_rad,paths)
+                    qdot_traj_rad   = warp_target_to_ref(reference_interaction,qdot_traj_rad,paths)
+                    hand_pos_traj   = warp_target_to_ref(reference_interaction,hand_pos_traj,paths)
+                    hand_speed      = warp_target_to_ref(reference_interaction,hand_speed,paths)
+
+                    for rft_key in rft_keys+["total"]:
+                        taus_traj[rft_key]["filtered-rescaled"] = warp_target_to_ref(reference_interaction,taus_traj[rft_key]["filtered-rescaled"],paths)
             
                     """ Submovement Segment """
                     # segment rescaled submovements
-                    indices_traj,sbmvmt_indices = segment_sbmvmts(time_data_norm,hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt',redo=redo_index)
-            
+                    warped_time = warp_target_to_ref(reference_interaction,actual_time_data[:,np.newaxis],paths) # warp the actual time stamps for submovement segmentation
+                    indices_traj,sbmvmt_indices = segment_sbmvmts(warped_time,hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt',redo=False)
+                    placehold.close()
+                    
                     """ Extract TP """
                     create_dir(f'{subject_path}/{var}/processed/tp')
                     # extract task parameters from each submovements (Input: joint kinematics, output: joint torques)
@@ -216,7 +290,7 @@ for p in range(1,4):
                     task_params     = np.hstack([task_params_A, task_params_b])
                     tp_df = pd.DataFrame(task_params, columns=[f"A{j}" for j in range(1,num_dim*num_dim+1)] + [f"b{j}" for j in range(1,num_dim+1)])
                     tp_df.to_csv(f'{subject_path}/{var}/processed/tp/UBOTP{rep}Log.csv',index=False)
-            
+                    
                     """ Save Post Processed Data """
                     # compile all data
                     full_data_dict[var][rep] = {
@@ -228,9 +302,10 @@ for p in range(1,4):
                         "sbmvmt": sbmvmt_indices,
                         "task_params": task_params_b
                     }
-                    full_processed_data = np.hstack([time_data_norm[:,np.newaxis],indices_traj,q_traj_rad,qdot_traj_rad,taus_traj["total"]["filtered-rescaled"],hand_pos_traj])
                     tau_total = taus_traj["total"]["filtered-rescaled"]
-                    df_column = ["norm_time","index"]+q+qdot+tau+["x","y","z"]
+                    full_processed_data = np.hstack([actual_time_data[:,np.newaxis],time_data_norm[:,np.newaxis],indices_traj,q_traj_rad,qdot_traj_rad,tau_total,hand_pos_traj])
+                    
+                    df_column = ["actual_time","norm_time","index"]+q+qdot+tau+["x","y","z"]
                     full_df = pd.DataFrame(full_processed_data,columns=df_column)
                     full_df.to_csv(f'{subject_path}/{var}/processed/UBORecord{rep}Log.csv',index=False)
         
@@ -242,11 +317,15 @@ for p in range(1,4):
                 hand_3d_traj_list.append(hand_pos_traj)
                 sbmvmt_list.append(indices_traj)  
                 rep_label_list.append(f'{var}.Rep{rep}')
-        
-        fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list,label=f"{session_data['subject_id']}_{session_data['patient_id']}")
-        split_plot_all(session_data["variants"],time_list,q_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="q_rad",fig_label=f"q_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
-        split_plot_all(session_data["variants"],time_list,tau_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="tau",fig_label=f"tau data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
-        plt.show()
+                
+        if not exist:
+            fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list,label=f"{session_data['subject_id']}_{session_data['patient_id']}")
+            split_plot_all(session_data["variants"],time_list,q_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="q_rad",fig_label=f"q_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+            split_plot_all(session_data["variants"],time_list,sbmvmt_list,rep_label_list,rep_split=session_data["num_rep"],data_type="index",fig_label=f"index data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+            split_plot_all(session_data["variants"],time_list,tau_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="tau",fig_label=f"tau data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+            split_plot_all(session_data["variants"],time_list,qdot_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="qdot_traj",fig_label=f"qdot_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+            plt.show()
+            
 # compare_multi_dim_data(
 #         time_list,
 #         qdot_traj_list,

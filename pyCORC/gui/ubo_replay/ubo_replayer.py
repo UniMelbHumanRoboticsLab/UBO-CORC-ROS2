@@ -148,7 +148,7 @@ class ubo_replayer(QObject):
         self.poll_timer = QTimer()
         self.poll_timer.setTimerType(Qt.PreciseTimer)
         self.poll_timer.timeout.connect(self.replay_current_data)
-        self.poll_timer.start(int(1/100*1000))
+        self.poll_timer.start(int(1/200*1000))
         self.replayer_start_time = self.replayer_timer.elapsed()
         
         self.traj_ready.emit(self.right_xsens_data)

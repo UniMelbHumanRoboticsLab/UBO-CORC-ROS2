@@ -1,10 +1,13 @@
 import os,sys
 import numpy as np
 import matplotlib.pyplot as plt
+import FreeSimpleGUI as sg
 
 sys.path.append(os.path.join(os.path.dirname(__file__),".."))
 from data_visual.plot_pkg import compare_multi_dim_data,plot_3d_submovements
 from scipy.interpolate import CubicSpline
+
+from dtaidistance import dtw_ndim,dtw
 
 """low pass filter"""
 def lpf(time_array,data,ts=0.01,fc=50,filter_type="low",datatype="trajectory",plot_results=False):
@@ -114,20 +117,13 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
             sbmvmt_indices = np.array(lines[0].split(": ")[1].split(), dtype=int)
             print(f"{segment_type} Indices:", sbmvmt_indices)
         if redo:
+            placehold = sg.popup('',location=(1550,300),non_blocking=True)  
             plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
-            key_state = {'pressed': None}
-            def on_key(event):
-                key_pressed = event.key
-                if key_pressed == 'w' or key_pressed == 'q':
-                    key_state['pressed'] = key_pressed
-                    plt.close("all")
-            
-            print("Good?: y/n (Press w or q)")
-
-            fig = plt.gcf()
-            fig.canvas.mpl_connect('key_press_event', on_key)
-            plt.show()
-            if key_state['pressed'] == 'w':
+            plt.show(block=False)
+            ok_or_not = sg.popup_yes_no('Ok or not',location=(1550,300),non_blocking=False)  
+            placehold.close()
+            plt.close("all")
+            if ok_or_not == "Yes":
                 good = True
             else:
                 good = False
@@ -140,11 +136,55 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
         
         
     while not good:
-        plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
         from mpl_point_clicker import clicker
+        placehold = sg.popup('',location=(1550,300),non_blocking=True)  
+        # plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
+        plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
         fig,axs = compare_multi_dim_data([time_array], [hand_speed], 1, ['speed'], 'Time', 'Hand Speed',fig_label= data_path)
         klicker = clicker(axs[0], ["event"], markers=["x"])
-        plt.show(block=True)
+        
+        from typing import Tuple
+        def point_added_cb(position: Tuple[float, float], klass: str):
+            x, y = position
+            
+            points = klicker.get_positions()['event']
+    
+            sbmvmt_indices = []
+            for point in points:
+                idx = (np.abs(time_array - point[0])).argmin()
+                sbmvmt_indices.append(idx)
+            if submovement_num != 1:
+                sbmvmt_indices = [0] + sbmvmt_indices + [len(time_array)-2]
+            sbmvmt_indices.sort()
+            
+            print(klicker.get_positions()['event'][-1])
+            plt.close("Hand Traj")
+            plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
+            plt.show(block=False)
+        
+        def point_removed_cb(position: Tuple[float, float], klass: str, idx):
+            points = klicker.get_positions()['event']
+    
+            sbmvmt_indices = []
+            for point in points:
+                idx = (np.abs(time_array - point[0])).argmin()
+                sbmvmt_indices.append(idx)
+            if submovement_num != 1:
+                sbmvmt_indices = [0] + sbmvmt_indices + [len(time_array)-2]
+            sbmvmt_indices.sort()
+            
+            # print(klicker.get_positions()['event'])
+            plt.close("Hand Traj")
+            plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
+            plt.show(block=False)
+
+        klicker.on_point_added(point_added_cb)
+        klicker.on_point_removed(point_removed_cb)
+        
+        plt.show(block=False)
+        sg.popup('Close all',location=(3400,300),non_blocking=False)  
+        placehold.close()
+        plt.close("all")
         points = klicker.get_positions()['event']
 
         sbmvmt_indices = []
@@ -152,32 +192,28 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
             idx = (np.abs(time_array - point[0])).argmin()
             sbmvmt_indices.append(idx)
         if submovement_num != 1:
-            sbmvmt_indices = [0] + sbmvmt_indices + [len(time_array)-1]
+            sbmvmt_indices = [0] + sbmvmt_indices + [len(time_array)-2]
         sbmvmt_indices.sort()
 
         if len(sbmvmt_indices) != submovement_num+1:
             print("Restart Selection:",len(sbmvmt_indices), "selected, need", submovement_num+1)
         else:
+            print(f"{segment_type} Indices:", sbmvmt_indices)
             print(f"Selected {segment_type} Time:",np.array(time_array[sbmvmt_indices],dtype=float))
-
+            placehold = sg.popup('',location=(3400,300),non_blocking=True)  
             plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
-            
-            key_state = {'pressed': None}
-            def on_key(event):
-                key_pressed = event.key
-                if key_pressed == 'w' or key_pressed == 'q':
-                    key_state['pressed'] = key_pressed
-                    plt.close("all")
-            
-            print("Good?: y/n (Press w or q)")
-
-            fig = plt.gcf()
-            fig.canvas.mpl_connect('key_press_event', on_key)
-            plt.show()
-            if key_state['pressed'] == 'w':
+            plt.show(block=False)
+            ok_or_not = sg.popup_yes_no('Ok or not',location=(3400,300),non_blocking=False)  
+            placehold.close()
+            plt.close("all")
+            if ok_or_not == "Yes":
                 good = True
                 sbmvmt_indices = np.array(sbmvmt_indices,dtype=int)
-                indexed_time = np.array(time_array[sbmvmt_indices],dtype=float)
+                time_array_norm = (time_array-time_array[0])/(time_array[-1]-time_array[0])
+                if segment_type != "Submovements":
+                    indexed_time = np.array(time_array[sbmvmt_indices],dtype=float)
+                else:
+                    indexed_time = np.array(time_array_norm[sbmvmt_indices],dtype=float)
                 
                 # save to txt file
                 with open(data_path, 'w') as f:
@@ -193,9 +229,9 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
             start_idx = sbmvmt_indices[i]
             end_idx = sbmvmt_indices[i+1]
             indices_array[start_idx:end_idx,0] = i+1
-        indices_array[sbmvmt_indices[len(sbmvmt_indices)-1]] = i+1
+        indices_array[sbmvmt_indices[len(sbmvmt_indices)-1]:] = i+1
     else:
-        sbmvmt_indices[-1] = sbmvmt_indices[-1]+1
+        sbmvmt_indices[-1] = sbmvmt_indices[-1]+1 # add one more index for the active movement segmentation
         indices_array = np.zeros((time_array.shape[0],1))
     print()
     return indices_array,sbmvmt_indices
@@ -216,3 +252,44 @@ def rescale(t_old, data,t_new,datatype="trajectory",plot_results=False):
             fig_label=f'rescale_{datatype}'    
         )
     return data_interp
+
+""""alignment using DTW """
+def align_dtw(ref_traj,target_traj):
+    # convert to double data type
+    ref_traj = ref_traj.astype(np.double)
+    target_traj = target_traj.astype(np.double)
+    
+    if len(ref_traj.shape) == 1: # univariate
+        distance, paths = dtw.warping_paths_fast(ref_traj, target_traj,keep_int_repr=True)
+        best_path = dtw.best_path(paths)
+    elif len(ref_traj.shape) > 1: # multidim
+        distance, paths = dtw_ndim.warping_paths_fast(ref_traj, target_traj,keep_int_repr=True)
+        best_path = dtw.best_path(paths)
+        
+    
+    # from dtaidistance import dtw_visualisation as dtwvis
+    # dtwvis.plot_warpingpaths(ref_traj, target_traj,paths,path=best_path,shownumbers=False,show_diagonal=True,showlegend=True)
+    return best_path
+
+def warp_target_to_ref(ref, target, path):
+    """
+    Warp series B to align with series A
+    Returns a warped version of B with same length as A
+    """
+    warped_target = np.zeros((len(ref),target.shape[1]))
+    
+    # Create mapping from A indices to B indices
+    a_to_b_mapping = {}
+    for a_idx, b_idx in path:
+        if a_idx not in a_to_b_mapping:
+            a_to_b_mapping[a_idx] = []
+        a_to_b_mapping[a_idx].append(b_idx)
+    
+    # Map values from B to A using the warping path
+    for a_idx in range(len(ref)):
+        if a_idx in a_to_b_mapping:
+            # Average if multiple B indices map to same A index
+            b_indices = a_to_b_mapping[a_idx]
+            warped_target[a_idx] = np.mean([target[b_idx,:] for b_idx in b_indices],axis=0)
+    
+    return warped_target
