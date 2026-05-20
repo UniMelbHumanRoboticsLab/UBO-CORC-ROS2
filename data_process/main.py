@@ -18,14 +18,13 @@ from pyCORC.pycorc_io.xsens.ub_pckg.ub import ub
 from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
 import FreeSimpleGUI as sg
 
-
-for p in range(2,3):
+for p in range(1,3):
     if p == 1:
         sm_num = 2
     else:
         sm_num=4
         
-    for sub in range(11,25):
+    for sub in range(12,25):
         """ init session parameters and perform train / test / validation spliting"""
         session_data = {
             "exp_id":"exp1",
@@ -67,7 +66,7 @@ for p in range(2,3):
         fc = 10  # cut-off frequency
         fs = 100 # resample frequency
         dt = 1/fs
-        redo_index = False
+        reprocess = False
         for var in session_data["variants"]:
             full_data_dict[var] = {}
             bias_path = f'{subject_path}/{var}/raw'
@@ -93,7 +92,7 @@ for p in range(2,3):
                 exist = os.path.exists(f'{subject_path}/{var}/processed/UBORecord{rep}Log.csv')
 
                 # check if data processed?
-                if exist and not redo_index:
+                if exist and not reprocess:
                     # # uncomment for index removal shortcut
                     # try:
                     #     os.remove(f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt')
@@ -110,6 +109,7 @@ for p in range(2,3):
                     indices_traj = full_df['index'].values[:,np.newaxis]
                     if n == 0:
                         reference_interaction = np.hstack((q_traj_rad,qdot_traj_rad,tau_total))
+                        reference_index = indices_traj
                     if var == session_data["variants"][0] and n == 0:
                         time_data       = time_data_norm
                         num_samples     = time_data.shape[0]
@@ -164,7 +164,7 @@ for p in range(2,3):
                     for rft_key in rft_keys:
                         taus_traj[rft_key]["filtered"] = lpf(time_data_unscaled,taus_traj[rft_key]["raw"],ts=dt_unscaled,fc=fc,datatype=f"tau_{rft_key}_{var}-Rep{rep}",plot_results=plot_results)
                     taus_traj["total"]["filtered"] = lpf(time_data_unscaled,taus_traj["total"]["raw"],ts=dt_unscaled,fc=fc,datatype=f"tau_total_{var}-Rep{rep}",plot_results=plot_results)
-                    
+
                     """ Uniform Resampling """
                     # downsample for easier model learning
                     plot_results = False
@@ -186,7 +186,7 @@ for p in range(2,3):
                     time_data       = time_data[start_end_indices[0]:start_end_indices[-1]]-time_data[start_end_indices[0]]
                     corc_data       = corc_data[start_end_indices[0]:start_end_indices[-1],:]
                     q_traj          = q_traj[start_end_indices[0]:start_end_indices[-1],:10] # from here just collect the first 10 joints
-                    q_traj_rad      = np.deg2rad(q_traj)
+                    
                     qdot_traj       = qdot_traj[start_end_indices[0]:start_end_indices[-1],:10]
                     hand_pos_traj   = hand_pos_traj[start_end_indices[0]:start_end_indices[-1],:]
                     hand_speed      = hand_speed[start_end_indices[0]:start_end_indices[-1],:]
@@ -226,9 +226,8 @@ for p in range(2,3):
                         target_interaction = np.hstack((q_traj_rad,qdot_traj_rad,taus_traj["total"]["filtered-rescaled"]))
                     
                     align_dim = 20
-                    placehold = sg.popup('',location=(1550,300),non_blocking=True)  
                     paths = align_dtw(reference_interaction[:,0:align_dim],target_interaction[:,0:align_dim])
-                    
+                    placehold = sg.popup('',location=(1550,300),non_blocking=True)  
                     f1,a1 = compare_multi_dim_data(
                             [actual_time_data,actual_time_data,actual_time_data],
                             [q_traj_rad,warp_target_to_ref(reference_interaction,q_traj_rad,paths),reference_interaction[:,0:10]],
@@ -262,26 +261,31 @@ for p in range(2,3):
                             semilogx=False,
                             fig_label=f"joint torque {align_dim}",
                             show_stats=False,loc="+3800+800")
+                    
                     interactive_plot(f1,a1)
                     interactive_plot(f2,a2)
                     interactive_plot(f3,a3)
                     
-                    corc_data       = warp_target_to_ref(reference_interaction,corc_data,paths)
-                    q_traj_rad      = warp_target_to_ref(reference_interaction,q_traj_rad,paths)
-                    qdot_traj_rad   = warp_target_to_ref(reference_interaction,qdot_traj_rad,paths)
-                    hand_pos_traj   = warp_target_to_ref(reference_interaction,hand_pos_traj,paths)
-                    hand_speed      = warp_target_to_ref(reference_interaction,hand_speed,paths)
-
-                    for rft_key in rft_keys+["total"]:
-                        taus_traj[rft_key]["filtered-rescaled"] = warp_target_to_ref(reference_interaction,taus_traj[rft_key]["filtered-rescaled"],paths)
-            
-                    """ Submovement Segment """
-                    # segment rescaled submovements
-                    warped_time = warp_target_to_ref(reference_interaction,actual_time_data[:,np.newaxis],paths) # warp the actual time stamps for submovement segmentation
-                    indices_traj,sbmvmt_indices = segment_sbmvmts(warped_time,hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt',redo=False)
+                    """ Submovement Segment using unaligned movement"""
+                    # segment rescaled but not aligned submovements
+                    haih = actual_time_data[:np.newaxis]
+                    indices_traj,sbmvmt_indices = segment_sbmvmts(actual_time_data[:np.newaxis],hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt',redo=False)
                     placehold.close()
+                    # f3,a3 = compare_multi_dim_data(
+                    #         [actual_time_data,actual_time_data,actual_time_data],
+                    #         [indices_traj,warp_target_to_ref(reference_interaction,indices_traj,paths),reference_index],
+                    #         1,
+                    #         ["ori","dtw","ref"],
+                    #         'Time(s)',
+                    #         "tau",
+                    #         sharex=True,
+                    #         semilogx=False,
+                    #         fig_label=f"joint torque {align_dim}",
+                    #         show_stats=False,loc="+3800+800")
+                    # interactive_plot(f3,a3)
+                    # plt.show()
                     
-                    """ Extract TP """
+                    """ Extract TP from the unaligned movement"""
                     create_dir(f'{subject_path}/{var}/processed/tp')
                     # extract task parameters from each submovements (Input: joint kinematics, output: joint torques)
                     num_dim = len(q)+len(qdot)+len(tau)
@@ -291,6 +295,15 @@ for p in range(2,3):
                     tp_df = pd.DataFrame(task_params, columns=[f"A{j}" for j in range(1,num_dim*num_dim+1)] + [f"b{j}" for j in range(1,num_dim+1)])
                     tp_df.to_csv(f'{subject_path}/{var}/processed/tp/UBOTP{rep}Log.csv',index=False)
                     
+                    """ Align interaction using DTW path """
+                    corc_data       = warp_target_to_ref(reference_interaction,corc_data,paths)
+                    q_traj_rad      = warp_target_to_ref(reference_interaction,q_traj_rad,paths)
+                    qdot_traj_rad   = warp_target_to_ref(reference_interaction,qdot_traj_rad,paths)
+                    hand_pos_traj   = warp_target_to_ref(reference_interaction,hand_pos_traj,paths)
+
+                    for rft_key in rft_keys+["total"]:
+                        taus_traj[rft_key]["filtered-rescaled"] = warp_target_to_ref(reference_interaction,taus_traj[rft_key]["filtered-rescaled"],paths)
+            
                     """ Save Post Processed Data """
                     # compile all data
                     full_data_dict[var][rep] = {
@@ -317,8 +330,7 @@ for p in range(2,3):
                 hand_3d_traj_list.append(hand_pos_traj)
                 sbmvmt_list.append(indices_traj)  
                 rep_label_list.append(f'{var}.Rep{rep}')
-                
-        if not exist:
+        if exist:
             fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list,label=f"{session_data['subject_id']}_{session_data['patient_id']}")
             split_plot_all(session_data["variants"],time_list,q_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="q_rad",fig_label=f"q_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
             split_plot_all(session_data["variants"],time_list,sbmvmt_list,rep_label_list,rep_split=session_data["num_rep"],data_type="index",fig_label=f"index data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)

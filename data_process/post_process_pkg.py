@@ -33,7 +33,7 @@ def lpf(time_array,data,ts=0.01,fc=50,filter_type="low",datatype="trajectory",pl
     if filter_type=="low":
         sos = butter(4, wc, 'low', analog=False, output='sos')
     else:
-        sos = butter(4, [0.1/nyquist ,wc], 'bandpass', analog=False, output='sos')
+        sos = butter(4, [0.001/nyquist ,wc], 'bandpass', analog=False, output='sos')
     w, h = sosfreqz(sos, worN=8000, fs=fs)
 
     for i in range(dim):
@@ -99,6 +99,15 @@ def calc_fixed_diff(data, dt):
 def calc_mag(vectors):
     return np.linalg.norm(vectors, axis=1)[:,np.newaxis]
 
+def closest_indices(time, selected):
+    time = np.asarray(time)
+    selected = np.asarray(selected)
+
+    idx = np.empty(len(selected), dtype=int)
+    for k, t in enumerate(selected):
+        # index of smallest absolute difference
+        idx[k] = int(np.argmin(np.abs(time - t)))
+    return idx
 """segment submovements for current repetition"""
 def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,redo=True):
     
@@ -115,12 +124,34 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
         with open(data_path, 'r') as f:
             lines = f.readlines()
             sbmvmt_indices = np.array(lines[0].split(": ")[1].split(), dtype=int)
-            print(f"{segment_type} Indices:", sbmvmt_indices)
+            
+            if segment_type != "Submovements":
+                indexed_time = np.array(lines[1].split(": ")[1].split(), dtype=float)
+            else:
+                p = lines[1].split(": ")[1].split("\n")[0]
+                import re
+                indexed_time = np.array([float(x) for x in re.findall(r"\[([^\]]+)\]", p)])
+                if len(indexed_time) == 0:
+                    indexed_time = np.array(lines[1].split(": ")[1].split(), dtype=float)
+                p = 0
+            print(f"Saved {segment_type} Indices:", sbmvmt_indices)
+            print(f"Saved {segment_type} Times:", indexed_time)
+            
+            # reindex if given time array is different from previous iteration time array
+            new_sbmvmt_indices = closest_indices(time_array, indexed_time)
+            # reuse the first and last one
+            new_sbmvmt_indices[0] = sbmvmt_indices[0]
+            new_sbmvmt_indices[-1] = sbmvmt_indices[-1]
+            print(f"New {segment_type} Indices:", new_sbmvmt_indices)
+            print(f"New {segment_type} Times:", np.array(time_array[new_sbmvmt_indices],dtype=float))
+            
+            sbmvmt_indices = new_sbmvmt_indices
+            time_array_norm = (time_array-time_array[0])/(time_array[-1]-time_array[0])
         if redo:
             placehold = sg.popup('',location=(1550,300),non_blocking=True)  
             plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
             plt.show(block=False)
-            ok_or_not = sg.popup_yes_no('Ok or not',location=(1550,300),non_blocking=False)  
+            ok_or_not = sg.popup_yes_no('Ok or not',location=(3400,300),non_blocking=False)  
             placehold.close()
             plt.close("all")
             if ok_or_not == "Yes":
@@ -210,18 +241,23 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
                 good = True
                 sbmvmt_indices = np.array(sbmvmt_indices,dtype=int)
                 time_array_norm = (time_array-time_array[0])/(time_array[-1]-time_array[0])
-                if segment_type != "Submovements":
-                    indexed_time = np.array(time_array[sbmvmt_indices],dtype=float)
-                else:
-                    indexed_time = np.array(time_array_norm[sbmvmt_indices],dtype=float)
-                
-                # save to txt file
-                with open(data_path, 'w') as f:
-                    f.write("sbmvmt_indices: " + " ".join(map(str, sbmvmt_indices)) + "\n")
-                    f.write("indexed_time: " + " ".join(map(str, indexed_time)) + "\n") 
             else:
-                good = False  
+                good = False
 
+    if segment_type != "Submovements":
+        indexed_time = np.array(time_array[sbmvmt_indices],dtype=float)
+        # save to txt file
+        with open(data_path, 'w') as f:
+            f.write("sbmvmt_indices: " + " ".join(map(str, sbmvmt_indices)) + "\n")
+            f.write("indexed_time: " + " ".join(map(str, indexed_time)) + "\n") 
+    else:
+        indexed_time = np.array(time_array[sbmvmt_indices],dtype=float)
+        indexed_time_norm = np.array(time_array_norm[sbmvmt_indices],dtype=float)
+        # save to txt file
+        with open(data_path, 'w') as f:
+            f.write("sbmvmt_indices: " + " ".join(map(str, sbmvmt_indices)) + "\n")
+            f.write("indexed_time: " + " ".join(map(str, indexed_time)) + "\n") 
+            f.write("indexed_time_norm: " + " ".join(map(str, indexed_time_norm)) + "\n") 
     
     if submovement_num != 1:
         indices_array = np.ones((time_array.shape[0],1))
@@ -259,11 +295,21 @@ def align_dtw(ref_traj,target_traj):
     ref_traj = ref_traj.astype(np.double)
     target_traj = target_traj.astype(np.double)
     
+    norm_pos = np.linalg.norm(ref_traj[:,:10],axis=1)
+    norm_ref_pos_traj = ref_traj[:,:10]/norm_pos[:,np.newaxis]
+    norm_ref_vel_traj = ref_traj[:,10:]/np.linalg.norm(ref_traj[:,10:],axis=1)[:,np.newaxis]
+    
+    norm_target_pos_traj = target_traj[:,:10]/np.linalg.norm(target_traj[:,:10],axis=1)[:,np.newaxis]
+    norm_target_vel_traj = target_traj[:,10:]/np.linalg.norm(target_traj[:,10:],axis=1)[:,np.newaxis]
+    
+    norm_ref_traj = np.hstack((norm_ref_pos_traj,norm_ref_vel_traj))
+    norm_target_traj = np.hstack((norm_target_pos_traj,norm_target_vel_traj))
+    
     if len(ref_traj.shape) == 1: # univariate
         distance, paths = dtw.warping_paths_fast(ref_traj, target_traj,keep_int_repr=True)
         best_path = dtw.best_path(paths)
     elif len(ref_traj.shape) > 1: # multidim
-        distance, paths = dtw_ndim.warping_paths_fast(ref_traj, target_traj,keep_int_repr=True)
+        distance, paths = dtw_ndim.warping_paths_fast(norm_ref_traj, norm_target_traj,keep_int_repr=True)
         best_path = dtw.best_path(paths)
         
     

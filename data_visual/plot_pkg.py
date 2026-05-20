@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-# plt.rcParams.update({'font.size': 22})
+# plt.rcParams.update({'font.size': 13})
+# mpl.rcParams["text.usetex"] = True
 from matplotlib.patches import Patch, Rectangle
 from matplotlib.lines import Line2D
 from scipy import stats
@@ -33,7 +34,8 @@ def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_t
             datatype=data_type,
             fig_label=f"{fig_label}",
             legend=False,
-            split=rep_split
+            split=rep_split,
+            figsize=(16,10)
         )
         if stats:
             plot_stats(
@@ -71,7 +73,7 @@ def plot_stats(x:np.ndarray, data_list:list, fig=None,axs=None,labels:list=[],le
         for i, ax in enumerate(axs):
             axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
 
-    colors = get_n_colors(len(data_list),split)
+    colors = get_n_colors(len(data_list),split=1)
     for data,color,label in zip(data_list,colors,labels):
         if dist == "gaussian":
             
@@ -116,14 +118,14 @@ def compare_multi_dim_data(x_list:list,data_list:list,
                            sharex:bool=True,semilogx:bool=False,legend:bool=True,
                            fig_label:str="Take1",
                            show_stats:bool=False,show_zero_cross:bool=False,
-                           prev_fig=None,prev_ax=None,loc="+2000+100"):
+                           prev_fig=None,prev_ax=None,loc="+2000+100",figsize=(8,5)):
     colors = get_n_colors(len(x_list),split,shuffle)
     # init fig, axes
     if prev_fig is not None and prev_ax is not None:
         fig = prev_fig
         axs = prev_ax
     else:
-        fig = plt.figure(figsize=(8, 5),num=fig_label,tight_layout=True)
+        fig = plt.figure(figsize=figsize,num=fig_label,tight_layout=True)
         fig.canvas.manager.window.wm_geometry(loc)
         axs = []
     
@@ -142,17 +144,34 @@ def compare_multi_dim_data(x_list:list,data_list:list,
                             'shoulder_fe','shoulder_aa','shoulder_ie',
                             'elbow_fe','elbow_ps','wrist_fe','wrist_dev']]
         else:
-            dim_labels = [f"${datatype}_{{{i}}}$ (Nm)" for i in [r'trunk\,int-ext\,rot',r'trunk\,abd-adduct',r'trunk\,flex-extension',
-                            r'clav\,dep-elev',r'clav\,prot-ret',
-                            r'shoulder\,flex-extension',r'shoulder\,abd-adduct',r'shoulder\,int-ext\,rot',
-                            r'elbow\,flex-extension',r'elbow\,pro-supination']]
+            def tex_label(datatype: str, dim: str) -> str:
+                if datatype == "tau":
+                    return fr"$\tau_{{{dim}}}$"
+            
+                base, sub = datatype.split("_", 1)
+            
+                if base.endswith("dddot"):
+                    base_tex = fr"\dddot{{{base[:-5]}}}"
+                elif base.endswith("ddot"):
+                    base_tex = fr"\ddot{{{base[:-4]}}}"
+                elif base.endswith("dot"):
+                    base_tex = fr"\dot{{{base[:-3]}}}"
+                else:
+                    base_tex = base
+            
+                return fr"${base_tex}_{{{dim}}}$"
+            dim_labels = [tex_label(datatype, i) for i in [
+                r'tru-int-ext-rot', r'tru-abd-adduct', r'tru-flex-extend',
+                r'clav-dep-elev', r'clav-prot-retract',
+                r'should-flex-extend', r'should-abd-adduct', r'should-int-ext-rot',
+                r'elb-flex-extend', r'elb-pro-supinate']]
         for i in range(dim):
             if dim >= 3:
                 axs.append(fig.add_subplot(int(np.ceil(dim/3)),3,i+1))
             else:
                 axs.append(fig.add_subplot(1,dim,i+1))
-            axs[i].set_xlabel(f'{xtype}',fontsize=14)
-            axs[i].set_ylabel(f'{dim_labels[i]}',fontsize=14)
+            axs[i].set_xlabel(f'{xtype}',fontsize=10)
+            axs[i].set_ylabel(f'{dim_labels[i]}',fontsize=10)
             # axs[i].set_title(f'{dim_labels[i]} vs {xtype}')
             axs[i].grid(True)
             
@@ -163,7 +182,7 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             (-40, 40), # trunk aa
             (-30, 80), # trunk fe
             (-30, 30), # clav dep-elev
-            (-15, 15), # clav pro retraction
+            (-30, 30), # clav pro retraction
             (-90, 180), # shoulder fe
             (-40, 180), # shoulder aa
             (-45, 90), # shoulder ie
@@ -299,7 +318,6 @@ def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None,label="3D
     if fig is None or ax is None:
         fig, ax = plt.subplots(figsize=(15, 5), subplot_kw={'projection': '3d'},num=label,tight_layout=True)
         
-
         ax.set_xlim([-0.9, 0.9])
         ax.set_ylim([-0.9, 0.9])
         ax.set_zlim([-0.2, 1.6])
@@ -321,10 +339,52 @@ def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None,label="3D
         return fig,ax
 
 """ plot submovements for a single 3d trajectory"""
-def plot_3d_submovements(traj,sbmvmt_indices):
+def create_custom_3d_fig():
+    # custom 3d fig with better mouse rotation and scroll wheel zoom
     fig, ax = plt.subplots(figsize=(5,5), subplot_kw={'projection': '3d'},tight_layout=True,num="Hand Traj")
+    ax.view_init(elev=35, azim=60)
+    scale_base=1.15
+    def _zoom_factor(event):
+        # Matplotlib scroll event uses 'up'/'down' (common) but be defensive.
+        b = getattr(event, "button", None)
+        if b == "up":
+            return 1.0 / scale_base
+        if b == "down":
+            return scale_base
+        # Some backends may provide step (positive/negative)
+        step = getattr(event, "step", 0) or 0
+        if step > 0:
+            return 1.0 / scale_base
+        if step < 0:
+            return scale_base
+        return None
+
+    def _scale_lim(lim, factor):
+        lo, hi = lim
+        c = 0.5 * (lo + hi)
+        r = (hi - lo) * 0.5 * factor
+        return (c - r, c + r)
+
+    def on_scroll(event):
+        if event.inaxes != ax:
+            return
+
+        factor = _zoom_factor(event)
+        if factor is None:
+            return
+
+        ax.set_xlim3d(_scale_lim(ax.get_xlim3d(), factor))
+        ax.set_ylim3d(_scale_lim(ax.get_ylim3d(), factor))
+        ax.set_zlim3d(_scale_lim(ax.get_zlim3d(), factor))
+        fig.canvas.draw_idle()
+
+    fig.canvas.mpl_connect("scroll_event", on_scroll)
+    
     fig.canvas.manager.window.wm_geometry("+2900+100")
     mpl.rcParams['axes3d.mouserotationstyle'] = "azel"
+    return fig,ax
+def plot_3d_submovements(traj,sbmvmt_indices):
+    fig,ax = create_custom_3d_fig()
     
     x = traj[:,0]-traj[0,0]
     y = traj[:,1]-traj[0,1]
@@ -332,17 +392,18 @@ def plot_3d_submovements(traj,sbmvmt_indices):
     
     min_b = np.min([np.min(x),np.min(y),np.min(z)])
     max_b = np.max([np.max(x),np.max(y),np.max(z)])
+    bb = np.max([np.abs(min_b),np.abs(max_b)])
     
-    ax.set_xlim([min_b, max_b])
-    ax.set_ylim([min_b, max_b])
-    ax.set_zlim([min_b, max_b])
+    ax.set_xlim([-bb, bb])
+    ax.set_ylim([-bb, bb])
+    ax.set_zlim([-bb, bb])
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')
     ax.set_title('3D Trajectory')
 
     n_colors = len(sbmvmt_indices)
-    colors = get_n_colors(n_colors)
+    colors = get_n_colors(n_colors,split=1)
 
     for i,sbmvmt_index in enumerate(sbmvmt_indices):
         ax.plot(x[sbmvmt_index],y[sbmvmt_index],z[sbmvmt_index],marker='o', linestyle='None', color=colors[i],label=f'point {i+1}')
