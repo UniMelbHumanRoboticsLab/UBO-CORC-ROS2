@@ -9,7 +9,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import sys,os
-
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../../..'))
+from data_visual.plot_pkg import create_custom_3d_fig
 
 
 # Set NumPy print options to show decimal format instead of exponential
@@ -83,19 +84,22 @@ class ub():
     """
     Plotting
     """
-    def plot_joints_ees_frame(self,joints_pose,ees_pose,show_joint_frames=True,show_ee_frames=True):
-        fig = plt.figure()
-        ax = fig.add_subplot(1,1,1,projection='3d')
-        ax.set_xlim(-0.5,0.5)
-        ax.set_ylim(-0.5,0.5)
-        ax.set_zlim(-0.5,0.5)
-        # ax.set_box_aspect([1, 1, 1])
-
+    def plot_skeleton(self,ax,joints_pose,color='k'):
         # plot skeleton
         x = np.array([joints_pose[0].t[0],joints_pose[4].t[0],joints_pose[6].t[0],joints_pose[8].t[0],joints_pose[10].t[0]])
         y = np.array([joints_pose[0].t[1],joints_pose[4].t[1],joints_pose[6].t[1],joints_pose[8].t[1],joints_pose[10].t[1]])
         z = np.array([joints_pose[0].t[2],joints_pose[4].t[2],joints_pose[6].t[2],joints_pose[8].t[2],joints_pose[10].t[2]])
-        ax.plot(x,y,z,marker='o', linestyle='-', color='k')
+        ax.plot(x,y,z,marker='.', linestyle='-', color=color)
+    def plot_joints_ees_frame(self,joints_pose,ees_pose,show_joint_frames=True,show_ee_frames=True):
+        fig,ax = create_custom_3d_fig(num="UB")
+        # fig = plt.figure()
+        # ax = fig.add_subplot(1,1,1,projection='3d')
+        ax.set_xlim(-0.5,0.5)
+        ax.set_ylim(-0.5,0.5)
+        ax.set_zlim(-0.5,0.5)
+        ax.set_box_aspect([1, 1, 1])
+        
+        self.plot_skeleton(ax,joints_pose)
 
         import matplotlib.colors as mcolors
         colors = list(mcolors.TABLEAU_COLORS.values())+list(mcolors.TABLEAU_COLORS.values())
@@ -145,7 +149,7 @@ class ub():
             for qq in qq_new:
                 joints_pose=self.ub_model[0].fkine_all(np.array(qq)) # this has all the frames of the robot joints
                 ee_pose = [self.ub_model[0].fkine(np.array(qq))]
-                self.plot_joints_ee_frames(joints_pose,ee_pose)
+                self.plot_joints_ees_frame(joints_pose,ee_pose)
             
         qq_new = pd.DataFrame(qq_new, columns=list(joints_traj.columns))
         return qq_new
@@ -256,7 +260,7 @@ if __name__ == "__main__":
                             0,
                             0,
                             0,
-                            90,
+                            0,
                             0,
                             0,
                             0]]
@@ -264,7 +268,7 @@ if __name__ == "__main__":
     for joints_config in tqdm(ub_postures_to_test):
         joints_pose, ee_pose = ub_xsens.ub_fkine(joints_config)
         ub_xsens.ub_model[0].plot(q=np.deg2rad(np.array(joints_config)))
-        # ub_xsens.plot_joints_ees_frame(joints_pose,ee_pose)
+        ub_xsens.plot_joints_ees_frame(joints_pose,ee_pose)
 
         # wrenches = np.array([[0,0,-10,0,0,0,
         #             10,0,0,0,0,0,
@@ -279,7 +283,7 @@ if __name__ == "__main__":
         #         print()
 
         # joints_pose, ee_pose = ub_xsens_left.ub_fkine(joints_config)
-        # ub_xsens_left.plot_joints_ee_frames(joints_pose,ee_pose)
+        # ub_xsens_left.plot_joints_ees_frame(joints_pose,ee_pose)
         plt.show(block=True)
         
         

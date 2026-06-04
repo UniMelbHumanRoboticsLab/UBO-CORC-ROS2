@@ -30,10 +30,10 @@ def lpf(time_array,data,ts=0.01,fc=50,filter_type="low",datatype="trajectory",pl
 
     xf = fftfreq(num_dtps, ts)[:num_dtps//2] # convert time to frequency domain
     window_fft = blackman(num_dtps) # define fft window
-    if filter_type=="low":
-        sos = butter(4, wc, 'low', analog=False, output='sos')
-    else:
-        sos = butter(4, [0.001/nyquist ,wc], 'bandpass', analog=False, output='sos')
+    # if filter_type=="low":
+    sos = butter(4, wc, 'low', analog=False, output='sos')
+    # else:
+    sos2 = butter(4, [0.001/nyquist ,wc], 'bandpass', analog=False, output='sos')
     w, h = sosfreqz(sos, worN=8000, fs=fs)
 
     for i in range(dim):
@@ -44,6 +44,9 @@ def lpf(time_array,data,ts=0.01,fc=50,filter_type="low",datatype="trajectory",pl
         rja_fft = fft(curr_dim_data*window_fft)
         fft_arr.append(np.abs(rja_fft[0:num_dtps//2]))
         # filter the data
+        # if i == 0 and "q_" in datatype: # currently only remove the bias in the trunk ie ()
+        #     filtered_dim_data = sosfiltfilt(sos , curr_dim_data)
+        # else:
         filtered_dim_data = sosfiltfilt(sos , curr_dim_data)
         filtered_data.append(filtered_dim_data)
         # FFT filtered data
@@ -109,8 +112,7 @@ def closest_indices(time, selected):
         idx[k] = int(np.argmin(np.abs(time - t)))
     return idx
 """segment submovements for current repetition"""
-def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,redo=True):
-    
+def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,redo=True,skeleton=False):
     data_path_split = data_path.split("/")
     
     if submovement_num == 1:
@@ -149,7 +151,7 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
             time_array_norm = (time_array-time_array[0])/(time_array[-1]-time_array[0])
         if redo:
             placehold = sg.popup('',location=(1550,300),non_blocking=True)  
-            plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
+            plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices,skeleton=skeleton)
             plt.show(block=False)
             ok_or_not = sg.popup_yes_no('Ok or not',location=(3400,300),non_blocking=False)  
             placehold.close()
@@ -169,8 +171,7 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
     while not good:
         from mpl_point_clicker import clicker
         placehold = sg.popup('',location=(1550,300),non_blocking=True)  
-        # plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
-        plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
+        plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices,skeleton=skeleton)
         fig,axs = compare_multi_dim_data([time_array], [hand_speed], 1, ['speed'], 'Time', 'Hand Speed',fig_label= data_path)
         klicker = clicker(axs[0], ["event"], markers=["x"])
         
@@ -190,7 +191,7 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
             
             print(klicker.get_positions()['event'][-1])
             plt.close("Hand Traj")
-            plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
+            plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices,skeleton=skeleton)
             plt.show(block=False)
         
         def point_removed_cb(position: Tuple[float, float], klass: str, idx):
@@ -206,7 +207,7 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
             
             # print(klicker.get_positions()['event'])
             plt.close("Hand Traj")
-            plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
+            plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices,skeleton=skeleton)
             plt.show(block=False)
 
         klicker.on_point_added(point_added_cb)
@@ -232,7 +233,7 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
             print(f"{segment_type} Indices:", sbmvmt_indices)
             print(f"Selected {segment_type} Time:",np.array(time_array[sbmvmt_indices],dtype=float))
             placehold = sg.popup('',location=(3400,300),non_blocking=True)  
-            plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices)
+            plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices,skeleton=skeleton)
             plt.show(block=False)
             ok_or_not = sg.popup_yes_no('Ok or not',location=(3400,300),non_blocking=False)  
             placehold.close()
