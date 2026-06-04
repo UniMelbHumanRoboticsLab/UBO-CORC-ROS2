@@ -122,20 +122,33 @@ class ubo_replay_gui(pycorc_gui):
     def init_shortcuts(self):
         # to start / stop logging at button press
         if self.replay_args["on"]:
-            # to start logging
-            start_log = QShortcut("S", self)
-            start_log.activated.connect(self.replayer_worker.start_take)
-            # to stop logging
-            stop_log = QShortcut("C", self)
-            stop_log.activated.connect(self.replayer_worker.stop_take)
-            # to go to next take logging
-            next_log = QShortcut("W", self)
-            next_log.activated.connect(self.replayer_worker.next_take)
-            # to go to next take logging
-            next_var = QShortcut("N", self)
-            next_var.activated.connect(self.replayer_worker.next_var)
+            # jump right
+            jump_r = QShortcut("3", self)
+            jump_r.activated.connect(self.replayer_worker.jump_r)
+            # jump left
+            jump_l = QShortcut("9", self)
+            jump_l.activated.connect(self.replayer_worker.jump_l)
             
-        close = QShortcut("E", self)
+            # to start logging
+            start_log = QShortcut("6", self)
+            start_log.activated.connect(self.replayer_worker.start_stop_take)
+            # to go to next take 
+            next_log = QShortcut("2", self)
+            next_log.activated.connect(self.replayer_worker.next_take)
+            prev_log = QShortcut("8", self)
+            prev_log.activated.connect(self.replayer_worker.prev_take)
+            # to go to next var
+            next_var = QShortcut("1", self)
+            next_var.activated.connect(self.replayer_worker.next_var)
+            prev_var = QShortcut("7", self)
+            prev_var.activated.connect(self.replayer_worker.prev_var)
+            # to go to next patient
+            next_var = QShortcut("5", self)
+            next_var.activated.connect(self.replayer_worker.next_role)
+            prev_var = QShortcut("4", self)
+            prev_var.activated.connect(self.replayer_worker.prev_role)
+            
+        close = QShortcut("0", self)
         close.activated.connect(self.gui_timer.stop)
         close.activated.connect(self.close_workers)
     def init_IOs(self):
@@ -198,6 +211,7 @@ class ubo_replay_gui(pycorc_gui):
     @Slot(list)
     def update_hand_traj(self,hand_traj_response):
         self.update_line(self.hand_traj,self.skeleton["right"]["ub_xsens"].ub_model[0].fkine(np.deg2rad(hand_traj_response)).t)
+        p=0
             
         
     """
