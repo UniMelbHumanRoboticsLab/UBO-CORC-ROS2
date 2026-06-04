@@ -23,6 +23,7 @@ def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_t
             unique_var_id.append(f"{x}")
             
     data_list_per_var = split_reps(data_list,rep_split)
+    
     # plot gt's mean and ci for each var
     if plot:
         fig,ax = compare_multi_dim_data(
@@ -44,8 +45,9 @@ def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_t
                 fig=fig,
                 axs=ax,
                 labels=[f"{x}.{fig_label}" for x in unique_var_id],
-                relimit=True,
-                split=rep_split
+                relimit=False,
+                split=rep_split,
+                datatype=data_type
             )
         interactive_plot(fig,ax)
     return data_list_per_var,unique_var_id
@@ -66,7 +68,10 @@ def get_n_colors(n_colors:int,split=4,shuffle=False):
     return colors
 
 """ plot confidence interval with mean and std for n-lists list (each element in the list is a list of  2d arrays)"""
-def plot_stats(x:np.ndarray, data_list:list, fig=None,axs=None,labels:list=[],legend=True,relimit=False,dist="gaussian",split=4):
+def plot_stats(x:np.ndarray, data_list:list, fig=None,axs=None,labels:list=[],legend=True,relimit=False,dist="gaussian",split=4,datatype="q"):
+    if "rad" in datatype:
+        temp = [np.rad2deg(data) for data in data_list]
+        data_list = temp
     if relimit:
         temp_arr = np.array(data_list)
         limits = [np.min(temp_arr),np.max(temp_arr)]
@@ -119,6 +124,10 @@ def compare_multi_dim_data(x_list:list,data_list:list,
                            fig_label:str="Take1",
                            show_stats:bool=False,show_zero_cross:bool=False,
                            prev_fig=None,prev_ax=None,loc="+2000+100",figsize=(8,5)):
+    
+    if "rad" in datatype:
+        temp = [np.rad2deg(data) for data in data_list]
+        data_list = temp
     colors = get_n_colors(len(x_list),split,shuffle)
     # init fig, axes
     if prev_fig is not None and prev_ax is not None:
@@ -161,7 +170,7 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             
                 return fr"${base_tex}_{{{dim}}}$"
             dim_labels = [tex_label(datatype, i) for i in [
-                r'tru-int-ext-rot', r'tru-abd-adduct', r'tru-flex-extend',
+                r'tru-int-ext-rot', r'tru-abd-adduct', r'trunk-flex-extension',
                 r'clav-dep-elev', r'clav-prot-retract',
                 r'should-flex-extend', r'should-abd-adduct', r'should-int-ext-rot',
                 r'elb-flex-extend', r'elb-pro-supinate']]
@@ -172,11 +181,11 @@ def compare_multi_dim_data(x_list:list,data_list:list,
                 axs.append(fig.add_subplot(1,dim,i+1))
             axs[i].set_xlabel(f'{xtype}',fontsize=10)
             axs[i].set_ylabel(f'{dim_labels[i]}',fontsize=10)
-            # axs[i].set_title(f'{dim_labels[i]} vs {xtype}')
+            axs[i].tick_params(axis="both", which="major", labelsize=10)
             axs[i].grid(True)
             
     # reset the limits
-    if datatype == 'q' or datatype == 'q_rad':
+    if datatype == 'q2' or datatype == 'q_rad2':
         limits =[
             (-50, 50), # trunk ie
             (-40, 40), # trunk aa
@@ -189,21 +198,17 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             (-10, 170), # elbow fe
             (-30, 190) # elbow ps
         ]
-    elif len(data_list) == 1:
-        temp_arr = np.array(data_list)
-        limits = [np.min(temp_arr),np.max(temp_arr)]
-    elif len(data_list) > 1:
+    else:
         temp_arr = np.array(data_list)
         limits = [np.min(temp_arr),np.max(temp_arr)]
 
+
     for i in range(dim):        
         if len(data_list) > 0:
-            if datatype == "q":
+            if datatype == "q2":
                 axs[i].set_ylim(limits[i][0],limits[i][1])
-            elif datatype == "q_rad":
-                axs[i].set_ylim(np.deg2rad(limits[i][0]),np.deg2rad(limits[i][1]))
             else:
-                axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
+                axs[i].set_ylim(limits[0]-0.3*abs(limits[0]),limits[1]+0.3*abs(limits[1]))
     
     # plot actual data
     for i,(x_array_i,data_array_i,label,color) in enumerate(zip(x_list, data_list, labels, colors)):
@@ -217,6 +222,7 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             linewidth = 3
         else:
             linewidth = 2
+            
         alpha = 1
         for j,ax in enumerate(axs):
             if semilogx:
@@ -231,7 +237,7 @@ def compare_multi_dim_data(x_list:list,data_list:list,
     # sanity check for zero crossings cuz why not
     for j,ax in enumerate(axs):
         if show_zero_cross:
-            plot_velocity_zero_crossings(x_array_i[:, j], data_array_i[:, j], ax)
+            plot_velocity_zero_crossings(x_array_i[:, j], data_list[0][:, j], ax)
     
     if legend:
         handles, labels = axs[0].get_legend_handles_labels()
@@ -338,18 +344,18 @@ def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None,label="3D
     else:
         return fig,ax
 
-""" plot submovements for a single 3d trajectory"""
-def create_custom_3d_fig():
+""" create a custom 3d figure with scroll zoom and easier mouse rotations"""
+def create_custom_3d_fig(num="Hand Traj"):
     # custom 3d fig with better mouse rotation and scroll wheel zoom
-    fig, ax = plt.subplots(figsize=(5,5), subplot_kw={'projection': '3d'},tight_layout=True,num="Hand Traj")
-    ax.view_init(elev=35, azim=60)
+    fig, ax = plt.subplots(figsize=(5,5), subplot_kw={'projection': '3d'},tight_layout=True,num=num)
+    ax.view_init(elev=90, azim=-90)
     scale_base=1.15
     def _zoom_factor(event):
         # Matplotlib scroll event uses 'up'/'down' (common) but be defensive.
         b = getattr(event, "button", None)
-        if b == "up":
-            return 1.0 / scale_base
         if b == "down":
+            return 1.0 / scale_base
+        if b == "up":
             return scale_base
         # Some backends may provide step (positive/negative)
         step = getattr(event, "step", 0) or 0
@@ -381,22 +387,33 @@ def create_custom_3d_fig():
     fig.canvas.mpl_connect("scroll_event", on_scroll)
     
     fig.canvas.manager.window.wm_geometry("+2900+100")
+    
     mpl.rcParams['axes3d.mouserotationstyle'] = "azel"
     return fig,ax
-def plot_3d_submovements(traj,sbmvmt_indices):
+"""make axis grids eqial size"""
+def equal_axis_grid(ax):
+    # Make ranges equal
+    x0, x1 = ax.get_xlim3d()
+    y0, y1 = ax.get_ylim3d()
+    z0, z1 = ax.get_zlim3d()
+    
+    xr, yr, zr = (x1-x0), (y1-y0), (z1-z0)
+    r = max(xr, yr, zr) / 2
+    
+    xm, ym, zm = (x0+x1)/2, (y0+y1)/2, (z0+z1)/2
+    ax.set_xlim(xm - r, xm + r)
+    ax.set_ylim(ym - r, ym + r)
+    ax.set_zlim(zm - r, zm + r)
+    
+    ax.set_box_aspect((1, 1, 1))
+""" plot submovements for a single 3d trajectory"""
+def plot_3d_submovements(traj,sbmvmt_indices,skeleton):
     fig,ax = create_custom_3d_fig()
     
-    x = traj[:,0]-traj[0,0]
-    y = traj[:,1]-traj[0,1]
-    z = traj[:,2]-traj[0,2]
+    x = traj[:,0]#-traj[0,0]
+    y = traj[:,1]#-traj[0,1]
+    z = traj[:,2]#-traj[0,2]
     
-    min_b = np.min([np.min(x),np.min(y),np.min(z)])
-    max_b = np.max([np.max(x),np.max(y),np.max(z)])
-    bb = np.max([np.abs(min_b),np.abs(max_b)])
-    
-    ax.set_xlim([-bb, bb])
-    ax.set_ylim([-bb, bb])
-    ax.set_zlim([-bb, bb])
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')
@@ -406,7 +423,11 @@ def plot_3d_submovements(traj,sbmvmt_indices):
     colors = get_n_colors(n_colors,split=1)
 
     for i,sbmvmt_index in enumerate(sbmvmt_indices):
-        ax.plot(x[sbmvmt_index],y[sbmvmt_index],z[sbmvmt_index],marker='o', linestyle='None', color=colors[i],label=f'point {i+1}')
+        ax.plot(x[sbmvmt_index],y[sbmvmt_index],z[sbmvmt_index],marker='o', linestyle='None', color=colors[i],label=f'movement {i+1}')
+        
+        joints_pose,ees_pose=skeleton["ub"].ub_fkine(np.hstack((skeleton["q"][sbmvmt_index],np.array([0,0])))) # this has all the frames of the robot joints
+        skeleton["ub"].plot_skeleton(ax,joints_pose,colors[i])
+        
         start = sbmvmt_index
         if i < len(sbmvmt_indices)-1:
             end = sbmvmt_indices[i+1]
@@ -417,6 +438,8 @@ def plot_3d_submovements(traj,sbmvmt_indices):
     if len(sbmvmt_indices) > 0:
         ax.legend()
     plt.tight_layout()
+    equal_axis_grid(ax)
+
     return ax,fig
 
 """ plot zero velocity crossings for 1D velocity data"""
@@ -496,7 +519,6 @@ def remove_outliers_iqr(data, multiplier=1.5):
     outliers = data[~mask]
     
     return cleaned_data, outliers, mask
-
 def plot_violins(
     data_list,
     axis_num,

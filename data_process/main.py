@@ -18,13 +18,13 @@ from pyCORC.pycorc_io.xsens.ub_pckg.ub import ub
 from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
 import FreeSimpleGUI as sg
 
-for p in range(1,3):
+for p in range(1,4):
     if p == 1:
         sm_num = 2
     else:
         sm_num=4
         
-    for sub in range(12,25):
+    for sub in range(11,25):
         """ init session parameters and perform train / test / validation spliting"""
         session_data = {
             "exp_id":"exp1",
@@ -149,8 +149,8 @@ for p in range(1,3):
                     # filter the original data
                     filter = "bp"
                     plot_results = False # check if filter fucks up the data
-                    corc_data   = lpf(time_data_unscaled,corc_data_unscaled,ts=dt_unscaled,fc=fc,filter_type=filter,datatype=f"wrenches_{var}-Rep{rep}",   plot_results=plot_results)
-                    q_traj      = lpf(time_data_unscaled,q_traj_unscaled,   ts=dt_unscaled,fc=fc,datatype=f"q_{var}-Rep{rep}",          plot_results=plot_results)
+                    corc_data   = lpf(time_data_unscaled,corc_data_unscaled,ts=dt_unscaled,fc=fc,filter_type="low",datatype=f"wrenches_{var}-Rep{rep}",   plot_results=plot_results)
+                    q_traj      = lpf(time_data_unscaled,q_traj_unscaled,   ts=dt_unscaled,fc=fc,datatype=f"q_{var}-Rep{rep}",          plot_results=False)
                     # calculate joint space kinematic and filter
                     qdot_traj   = calc_fixed_diff(q_traj, dt=dt_unscaled)
                     qdot_traj   = lpf(time_data_unscaled, qdot_traj, ts=dt_unscaled, fc=1.5, datatype=f"qdot_{var}-Rep{rep}", plot_results=plot_results)
@@ -181,7 +181,7 @@ for p in range(1,3):
                     # create the following subdirectories if needed
                     create_dir(f'{subject_path}/{var}/processed/index')
                     # extract active movement
-                    _,start_end_indices = segment_sbmvmts(time_data,hand_pos_traj,hand_speed,1,data_path=f'{subject_path}/{var}/processed/index/UBOStartEnd{rep}.txt',redo=False)
+                    _,start_end_indices = segment_sbmvmts(time_data,hand_pos_traj,hand_speed,1,data_path=f'{subject_path}/{var}/processed/index/UBOStartEnd{rep}.txt',redo=False,skeleton={"ub":skeleton,"q":q_traj})
                     actual_time_data = time_data[start_end_indices[0]:start_end_indices[-1]]
                     time_data       = time_data[start_end_indices[0]:start_end_indices[-1]]-time_data[start_end_indices[0]]
                     corc_data       = corc_data[start_end_indices[0]:start_end_indices[-1],:]
@@ -249,7 +249,8 @@ for p in range(1,3):
                             sharex=True,
                             semilogx=False,
                             fig_label=f"joint angle vel rad/s {align_dim}",
-                            show_stats=False,loc="+2900+800")
+                            show_stats=False,loc="+2900+800",
+                            show_zero_cross=True)
                     f3,a3 = compare_multi_dim_data(
                             [actual_time_data,actual_time_data,actual_time_data],
                             [taus_traj["total"]["filtered-rescaled"],warp_target_to_ref(reference_interaction,taus_traj["total"]["filtered-rescaled"],paths),reference_interaction[:,20:]],
@@ -269,7 +270,7 @@ for p in range(1,3):
                     """ Submovement Segment using unaligned movement"""
                     # segment rescaled but not aligned submovements
                     haih = actual_time_data[:np.newaxis]
-                    indices_traj,sbmvmt_indices = segment_sbmvmts(actual_time_data[:np.newaxis],hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt',redo=False)
+                    indices_traj,sbmvmt_indices = segment_sbmvmts(actual_time_data[:np.newaxis],hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt',redo=False,skeleton={"ub":skeleton,"q":q_traj})
                     placehold.close()
                     # f3,a3 = compare_multi_dim_data(
                     #         [actual_time_data,actual_time_data,actual_time_data],
@@ -330,12 +331,12 @@ for p in range(1,3):
                 hand_3d_traj_list.append(hand_pos_traj)
                 sbmvmt_list.append(indices_traj)  
                 rep_label_list.append(f'{var}.Rep{rep}')
-        if exist:
+        if not exist:
             fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list,label=f"{session_data['subject_id']}_{session_data['patient_id']}")
             split_plot_all(session_data["variants"],time_list,q_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="q_rad",fig_label=f"q_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
             split_plot_all(session_data["variants"],time_list,sbmvmt_list,rep_label_list,rep_split=session_data["num_rep"],data_type="index",fig_label=f"index data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
             split_plot_all(session_data["variants"],time_list,tau_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="tau",fig_label=f"tau data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
-            split_plot_all(session_data["variants"],time_list,qdot_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="qdot_traj",fig_label=f"qdot_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+            split_plot_all(session_data["variants"],time_list,qdot_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="qdot_rad",fig_label=f"qdot_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
             plt.show()
             
 # compare_multi_dim_data(
