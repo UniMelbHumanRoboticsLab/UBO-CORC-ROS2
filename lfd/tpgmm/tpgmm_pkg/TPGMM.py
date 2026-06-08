@@ -23,6 +23,7 @@ class TPGMM:
         self.num_of_gauss = num_of_gauss
         self.num_of_frames = num_of_frames
         self.num_of_dim = num_of_dim
+        self.converged_LL = 0
         self.priors = priors
         self.kP = kP
         self.kV = kV
@@ -287,6 +288,7 @@ class TPGMM:
                     break
 
         print(f"Likelihood {iter}: {LL[iter]:.4f} \t Tol: {diff:.4f}")
+        self.converged_LL = LL
         print(f"Conv. Priors:\t{self.priors}\tSum:{np.sum(self.priors)}")
         print(f'EM converged ({"Success" if iter!=nbMaxSteps else "Fail"}) after {iter+1} iterations.')
         return np.array([LL]).T,iter==nbMaxSteps

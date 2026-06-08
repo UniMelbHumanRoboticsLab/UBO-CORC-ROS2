@@ -64,7 +64,9 @@ for p in range(1,4):
                     with open(tpgmm_file_path, 'rb') as outp:
                         tpgmm = pickle.load(outp)
                         num_of_gauss = tpgmm.num_of_gauss
+                        LL = tpgmm.converged_LL
                         print(f"Number of Gaussians: {num_of_gauss}")
+                        print(f"Converged Likelihood: {LL}")
                 else:
                     fail = True
                     retry = 0
@@ -83,6 +85,7 @@ for p in range(1,4):
                         retry += 1
                     if fail:
                         print(f"{subject_path} failed to converge| Pending post check")
+                    create_dir(f"{subject_path}/repro")
                     with open(tpgmm_file_path, 'wb') as file:
                         # Dump data with highest protocol for best performance
                         pickle.dump(tpgmm,file, protocol=pickle.HIGHEST_PROTOCOL)
@@ -158,7 +161,6 @@ for p in range(1,4):
                     id_list.append(val_dict["id"])
                 
                 # save the results
-                create_dir(f"{subject_path}/repro")
                 save_results(session_data["subject_id"],time_list,recon_list,train_comparators_per_var,id_list,f"{subject_path}/repro/val_{combi_num}_{sample_num}")
                 
                 """plot validation recon & gt with the training data's mean and CI"""
