@@ -61,7 +61,7 @@ class TPGMM:
         # Kmeans++ init
         else:
             from gmr.gmm import kmeansplusplus_initialization
-            from gmr.gmm import covariance_initialization
+            
             # start with equal priors for each gaussian
             self.priors = np.random.dirichlet(np.ones(self.num_of_gauss))
             # self.priors = self.priors / self.num_of_gauss
@@ -81,6 +81,7 @@ class TPGMM:
                                           (average_distances / self.num_of_gauss) ** 2)
                 
                 # # initialize the covariance for current frame
+                # from gmr.gmm import covariance_initialization
                 # SigmaCurFrame = covariance_initialization(
                 #     dataCurFrame,self.num_of_gauss)
                 
@@ -103,41 +104,41 @@ class TPGMM:
     """
     perform EM to get the most optimal mean and covariance for each Gaussian in each frame
     """
-    def gaussPDF(self,Data,Mu,Sigma):
-        """
-        gaussian probability distribution function  
-        """
-        num_of_dim = Data.shape[0] # this is because fit and reproduce has different uses for this gaussPDF
+    # def gaussPDF(self,Data,Mu,Sigma):
+    #     """
+    #     gaussian probability distribution function  
+    #     """
+    #     num_of_dim = Data.shape[0] # this is because fit and reproduce has different uses for this gaussPDF
 
-        if Data.ndim == 1:
-            Data =  np.expand_dims(Data,axis=-1)
-        if Mu.ndim == 1:
-            Mu = np.expand_dims(Mu,axis=-1)
+    #     if Data.ndim == 1:
+    #         Data =  np.expand_dims(Data,axis=-1)
+    #     if Mu.ndim == 1:
+    #         Mu = np.expand_dims(Mu,axis=-1)
         
-        Data = Data - Mu
-        prob = sum(np.matmul(np.linalg.inv(Sigma),Data)*Data,0)
-        prob = np.exp(-0.5*prob) / (np.sqrt(np.power(2*np.pi,num_of_dim) * np.abs(np.linalg.det(Sigma))))
-        return prob
-    def computeGamma_slow(self,tp_data):
-        nbData = tp_data.shape[0]
+    #     Data = Data - Mu
+    #     prob = sum(np.matmul(np.linalg.inv(Sigma),Data)*Data,0)
+    #     prob = np.exp(-0.5*prob) / (np.sqrt(np.power(2*np.pi,num_of_dim) * np.abs(np.linalg.det(Sigma))))
+    #     return prob
+    # def computeGamma_slow(self,tp_data):
+    #     nbData = tp_data.shape[0]
 
-        # ============ Original version ============
-        # init responsibility of each main gaussian for each data point
-        Lik = np.ones((self.num_of_gauss, nbData))
+    #     # ============ Original version ============
+    #     # init responsibility of each main gaussian for each data point
+    #     Lik = np.ones((self.num_of_gauss, nbData))
 
-        # init responsibility of each gaussian in each frame for each data point
-        GAMMA0 = np.zeros((self.num_of_gauss, self.num_of_frames, nbData))
+    #     # init responsibility of each gaussian in each frame for each data point
+    #     GAMMA0 = np.zeros((self.num_of_gauss, self.num_of_frames, nbData))
         
-        for i in range(self.num_of_gauss):
-            for j in range(self.num_of_frames):
-                data_mat = tp_data[:,:,j].T
-                GAMMA0[i,j,:] = self.gaussPDF(data_mat, self.Mu[:,j,i], self.Sigma[:,:,j,i])                
-                Lik[i,:] = np.multiply(Lik[i,:],(GAMMA0[i,j,:]))
-            Lik[i,:] = Lik[i,:] * self.priors[i]
-        Lik = np.clip(Lik, realmin, realmax) # to prevent numerical issues
-        GAMMA = Lik / np.sum(Lik,0)
+    #     for i in range(self.num_of_gauss):
+    #         for j in range(self.num_of_frames):
+    #             data_mat = tp_data[:,:,j].T
+    #             GAMMA0[i,j,:] = self.gaussPDF(data_mat, self.Mu[:,j,i], self.Sigma[:,:,j,i])                
+    #             Lik[i,:] = np.multiply(Lik[i,:],(GAMMA0[i,j,:]))
+    #         Lik[i,:] = Lik[i,:] * self.priors[i]
+    #     Lik = np.clip(Lik, realmin, realmax) # to prevent numerical issues
+    #     GAMMA = Lik / np.sum(Lik,0)
 
-        return Lik, GAMMA, GAMMA0
+    #     return Lik, GAMMA, GAMMA0
     def computeGamma(self,tp_data):
         # ============ Vectorized version ============
         # tp_data: (nbData, num_of_dim, num_of_frames)
@@ -230,65 +231,65 @@ class TPGMM:
                     Sigma = np.einsum('gn,nafg,nbfg->abfg', GAMMA_SUM, diff, diff) + np.eye(self.num_of_dim)[:, :, np.newaxis, np.newaxis] * self.diagRegFact # add regularization to prevent singular matrix
                 # compute Average Log-likelihood to estimate convergence
                 curLL = np.sum(np.log(np.sum(L,0))) / L.shape[1]
-            # Slow EM
-            if self.version=="slow" or self.version=="compare":
-                # E-step slow
-                L2,GAMMA2,GAMMA02 = self.computeGamma_slow(tp_data)
-                GAMMA_SUM2 = GAMMA2 / np.expand_dims(np.sum(GAMMA2,1),axis=-1)
-                self.Pix = GAMMA_SUM2
+            # # Slow EM
+            # if self.version=="slow" or self.version=="compare":
+            #     # E-step slow
+            #     L2,GAMMA2,GAMMA02 = self.computeGamma_slow(tp_data)
+            #     GAMMA_SUM2 = GAMMA2 / np.expand_dims(np.sum(GAMMA2,1),axis=-1)
+            #     self.Pix = GAMMA_SUM2
 
-                # M-step slow
-                priors2 = self.priors
-                Mu2 = self.Mu
-                Sigma2 = self.Sigma
-                for i in range(self.num_of_gauss):
-                    # Update Priors
-                    if updateComp[0]:
-                        priors2[i] = np.sum(np.sum(GAMMA2[i,:])) / nbData
-                    for j in range(self.num_of_frames):
-                        data_mat = tp_data[:,:,j].T
-                        # Update Mu
-                        if updateComp[1]:
-                            Mu2[:,j,i] = np.squeeze(np.matmul(data_mat,np.expand_dims(GAMMA_SUM2[i,:].T,axis=-1)))
-                        # update sigma
-                        if updateComp[2]:
-                            DataTmp = data_mat - np.expand_dims(Mu2[:,j,i],axis=-1)
-                            Sigma2[:,:,j,i] = np.matmul(DataTmp,np.matmul(np.diag(GAMMA_SUM2[i,:]),DataTmp.T)) + np.eye(DataTmp.shape[0]) * self.diagRegFact # add regularization to prevent singular matrix
-                # compute Average Log-likelihood to estimate convergence
-                curLL = np.sum(np.log(np.sum(L2,0))) / L2.shape[1]
+            #     # M-step slow
+            #     priors2 = self.priors
+            #     Mu2 = self.Mu
+            #     Sigma2 = self.Sigma
+            #     for i in range(self.num_of_gauss):
+            #         # Update Priors
+            #         if updateComp[0]:
+            #             priors2[i] = np.sum(np.sum(GAMMA2[i,:])) / nbData
+            #         for j in range(self.num_of_frames):
+            #             data_mat = tp_data[:,:,j].T
+            #             # Update Mu
+            #             if updateComp[1]:
+            #                 Mu2[:,j,i] = np.squeeze(np.matmul(data_mat,np.expand_dims(GAMMA_SUM2[i,:].T,axis=-1)))
+            #             # update sigma
+            #             if updateComp[2]:
+            #                 DataTmp = data_mat - np.expand_dims(Mu2[:,j,i],axis=-1)
+            #                 Sigma2[:,:,j,i] = np.matmul(DataTmp,np.matmul(np.diag(GAMMA_SUM2[i,:]),DataTmp.T)) + np.eye(DataTmp.shape[0]) * self.diagRegFact # add regularization to prevent singular matrix
+            #     # compute Average Log-likelihood to estimate convergence
+            #     curLL = np.sum(np.log(np.sum(L2,0))) / L2.shape[1]
             # assign updated parameters
             if self.version=="fast":
                 self.priors = priors
                 self.Mu = Mu
                 self.Sigma = Sigma
-            elif self.version=="slow" or self.version=="compare":
-                self.priors = priors2
-                self.Mu = Mu2
-                self.Sigma = Sigma2
-            # Verify vectorized version matches original
-            if self.version=="compare":
-                print(f"\niter:{iter}")
-                print("Max norm diff Lik:", get_max_norm_diff(L,L2))
-                print("Max norm diff GAMMA:", get_max_norm_diff(GAMMA,GAMMA2))
-                print("Max norm diff GAMMA0:", get_max_norm_diff(GAMMA0,GAMMA02))
-                print("Max norm diff GAMMA_SUM2:", get_max_norm_diff(GAMMA_SUM,GAMMA_SUM2))
-                print("Max norm diff Priors:", get_max_norm_diff(priors,priors2))
-                print("Max norm diff Mu:", get_max_norm_diff(Mu,Mu2))
-                print("Max norm diff Sigma:", get_max_norm_diff(Sigma,Sigma2))
-                print()
+            # elif self.version=="slow" or self.version=="compare":
+            #     self.priors = priors2
+            #     self.Mu = Mu2
+            #     self.Sigma = Sigma2
+            # # Verify vectorized version matches original
+            # if self.version=="compare":
+            #     print(f"\niter:{iter}")
+            #     print("Max norm diff Lik:", get_max_norm_diff(L,L2))
+            #     print("Max norm diff GAMMA:", get_max_norm_diff(GAMMA,GAMMA2))
+            #     print("Max norm diff GAMMA0:", get_max_norm_diff(GAMMA0,GAMMA02))
+            #     print("Max norm diff GAMMA_SUM2:", get_max_norm_diff(GAMMA_SUM,GAMMA_SUM2))
+            #     print("Max norm diff Priors:", get_max_norm_diff(priors,priors2))
+            #     print("Max norm diff Mu:", get_max_norm_diff(Mu,Mu2))
+            #     print("Max norm diff Sigma:", get_max_norm_diff(Sigma,Sigma2))
+            #     print()
 
             LL.append(curLL)
             diff = np.abs((LL[iter]-LL[iter-1]))
             pbar.set_postfix(iter=iter,cur_ll=curLL,loglike_diff=diff)
 
             if iter>nbMinSteps:
-                if diff<maxDiffLL or  iter==nbMaxSteps-1:
+                if diff<maxDiffLL or  iter==nbMaxSteps:
                     break
 
         print(f"Likelihood {iter}: {LL[iter]:.4f} \t Tol: {diff:.4f}")
         print(f"Conv. Priors:\t{self.priors}\tSum:{np.sum(self.priors)}")
-        print(f'EM converged after {iter+1} iterations.')
-        return np.array([LL]).T
+        print(f'EM converged ({"Success" if iter!=nbMaxSteps else "Fail"}) after {iter+1} iterations.')
+        return np.array([LL]).T,iter==nbMaxSteps
     
     """
     reproduce optimal trajectory by conditioning GMM with task parameters then GMR (with slow and fast implementation)
@@ -313,56 +314,56 @@ class TPGMM:
             Input_reconOutput[:,t] = np.squeeze(np.vstack((DataInTmp,X)),axis=-1)
         expectedOutput = Input_reconOutput[last_input_index+1:last_output_index+1,:]
         return Input_reconOutput,expectedOutput # return
-    def conditionTPGMM_slow(self,sampleParam):
-        """
-        Recondition the TPGMM using product of linearly transformed Gaussian
-        """
-        # Slow version for verification
-        Sigma = np.zeros((self.num_of_dim,self.num_of_dim,self.num_of_gauss))
-        Mu = np.zeros((self.num_of_dim,self.num_of_gauss))
-        for i in range(self.num_of_gauss):
-            sigmaTmp = np.zeros((self.num_of_dim,self.num_of_dim))
-            MuTmp = np.zeros((self.num_of_dim,1))
-            for j in range(self.num_of_frames):
-                muCurFrame = np.expand_dims(np.matmul(sampleParam.A[j],self.Mu[:,j,i]),axis=-1) + sampleParam.b[j]
-                sigmaCurFrame = np.matmul(sampleParam.A[j],np.matmul(self.Sigma[:,:,j,i],sampleParam.A[j].T))
-                sigmaTmp = sigmaTmp + np.linalg.inv(sigmaCurFrame)
-                MuTmp = MuTmp + np.matmul(np.linalg.inv(sigmaCurFrame),muCurFrame)
-            Sigma[:,:,i] = np.linalg.inv(sigmaTmp)
-            Mu[:,i] = np.squeeze(np.matmul(Sigma[:,:,i],MuTmp))
-        return Mu, Sigma
-    def GMR_slow(self,tpNewMu,tpNewSigma,DataIn,last_input_index,last_output_index):
-        """
-        GMR to produce a reference trajectory to follow
-        """
-        if len(DataIn.shape) == 1: # to standardize for multi-input cases
-            DataIn = np.expand_dims(DataIn,axis=-1)
-        nbData = DataIn.shape[0]
-        nbOut = last_output_index-last_input_index
-        muTmp = np.zeros((nbOut,self.num_of_gauss))
-        expected_data = np.zeros((nbOut,nbData))
-        expSigma = np.zeros((nbOut,nbOut,nbData))
-        priorsOutput = np.zeros((self.num_of_gauss,nbData))
-        for t in range(nbData):
-            # compute overall activation weights from the each Gaussian
-            for j in range(self.num_of_gauss):
-                # print(t,j)
-                p = self.gaussPDF(Data=DataIn[t,:],Mu=tpNewMu[0:last_input_index+1,j],Sigma=tpNewSigma[0:last_input_index+1,0:last_input_index+1,j])
-                priorsOutput[j,t] = self.priors[j]*p
-            priorsOutput[:,t] = np.clip(priorsOutput[:,t], realmin, realmax) # to prevent numerical issues
-            priorsOutput[:,t] = priorsOutput[:,t] / np.sum(priorsOutput[:,t]) # normalize activation weights
+    # def conditionTPGMM_slow(self,sampleParam):
+    #     """
+    #     Recondition the TPGMM using product of linearly transformed Gaussian
+    #     """
+    #     # Slow version for verification
+    #     Sigma = np.zeros((self.num_of_dim,self.num_of_dim,self.num_of_gauss))
+    #     Mu = np.zeros((self.num_of_dim,self.num_of_gauss))
+    #     for i in range(self.num_of_gauss):
+    #         sigmaTmp = np.zeros((self.num_of_dim,self.num_of_dim))
+    #         MuTmp = np.zeros((self.num_of_dim,1))
+    #         for j in range(self.num_of_frames):
+    #             muCurFrame = np.expand_dims(np.matmul(sampleParam.A[j],self.Mu[:,j,i]),axis=-1) + sampleParam.b[j]
+    #             sigmaCurFrame = np.matmul(sampleParam.A[j],np.matmul(self.Sigma[:,:,j,i],sampleParam.A[j].T))
+    #             sigmaTmp = sigmaTmp + np.linalg.inv(sigmaCurFrame)
+    #             MuTmp = MuTmp + np.matmul(np.linalg.inv(sigmaCurFrame),muCurFrame)
+    #         Sigma[:,:,i] = np.linalg.inv(sigmaTmp)
+    #         Mu[:,i] = np.squeeze(np.matmul(Sigma[:,:,i],MuTmp))
+    #     return Mu, Sigma
+    # def GMR_slow(self,tpNewMu,tpNewSigma,DataIn,last_input_index,last_output_index):
+    #     """
+    #     GMR to produce a reference trajectory to follow
+    #     """
+    #     if len(DataIn.shape) == 1: # to standardize for multi-input cases
+    #         DataIn = np.expand_dims(DataIn,axis=-1)
+    #     nbData = DataIn.shape[0]
+    #     nbOut = last_output_index-last_input_index
+    #     muTmp = np.zeros((nbOut,self.num_of_gauss))
+    #     expected_data = np.zeros((nbOut,nbData))
+    #     expSigma = np.zeros((nbOut,nbOut,nbData))
+    #     priorsOutput = np.zeros((self.num_of_gauss,nbData))
+    #     for t in range(nbData):
+    #         # compute overall activation weights from the each Gaussian
+    #         for j in range(self.num_of_gauss):
+    #             # print(t,j)
+    #             p = self.gaussPDF(Data=DataIn[t,:],Mu=tpNewMu[0:last_input_index+1,j],Sigma=tpNewSigma[0:last_input_index+1,0:last_input_index+1,j])
+    #             priorsOutput[j,t] = self.priors[j]*p
+    #         priorsOutput[:,t] = np.clip(priorsOutput[:,t], realmin, realmax) # to prevent numerical issues
+    #         priorsOutput[:,t] = priorsOutput[:,t] / np.sum(priorsOutput[:,t]) # normalize activation weights
             
-            for j in range(self.num_of_gauss):
-                # Compute conditional means from each Gaussian and sum it to get the expected output mean 
-                muTmp[:,j] = tpNewMu[last_input_index+1:last_output_index+1,j] + np.matmul(np.matmul(tpNewSigma[last_input_index+1:last_output_index+1,0:last_input_index+1,j],np.linalg.inv(tpNewSigma[0:last_input_index+1,0:last_input_index+1,j])),DataIn[t,:]-tpNewMu[0:last_input_index+1,j])
-                expected_data[:,t] = expected_data[:,t] + np.multiply(priorsOutput[j,t],muTmp[:,j])
+    #         for j in range(self.num_of_gauss):
+    #             # Compute conditional means from each Gaussian and sum it to get the expected output mean 
+    #             muTmp[:,j] = tpNewMu[last_input_index+1:last_output_index+1,j] + np.matmul(np.matmul(tpNewSigma[last_input_index+1:last_output_index+1,0:last_input_index+1,j],np.linalg.inv(tpNewSigma[0:last_input_index+1,0:last_input_index+1,j])),DataIn[t,:]-tpNewMu[0:last_input_index+1,j])
+    #             expected_data[:,t] = expected_data[:,t] + np.multiply(priorsOutput[j,t],muTmp[:,j])
             
-                # compute conditional covariance from each Gaussian and condition it to expected output covariance
-                SigmaTmp = tpNewSigma[last_input_index+1:last_output_index+1,last_input_index+1:last_output_index+1,j] - np.matmul(np.matmul(tpNewSigma[last_input_index+1:last_output_index+1,0:last_input_index+1,j],np.linalg.inv(tpNewSigma[0:last_input_index+1,0:last_input_index+1,j])),tpNewSigma[0:last_input_index+1,last_input_index+1:last_output_index+1,j])
-                expSigma[:,:,t] = expSigma[:,:,t] + np.multiply(priorsOutput[j,t],SigmaTmp+np.matmul(muTmp[:,j],muTmp[:,j].T))
-            expSigma[:,:,t] = expSigma[:,:,t] - np.matmul(expected_data[:,t],expected_data[:,t].T) + np.eye(nbOut,nbOut)*self.diagRegFact
+    #             # compute conditional covariance from each Gaussian and condition it to expected output covariance
+    #             SigmaTmp = tpNewSigma[last_input_index+1:last_output_index+1,last_input_index+1:last_output_index+1,j] - np.matmul(np.matmul(tpNewSigma[last_input_index+1:last_output_index+1,0:last_input_index+1,j],np.linalg.inv(tpNewSigma[0:last_input_index+1,0:last_input_index+1,j])),tpNewSigma[0:last_input_index+1,last_input_index+1:last_output_index+1,j])
+    #             expSigma[:,:,t] = expSigma[:,:,t] + np.multiply(priorsOutput[j,t],SigmaTmp+np.matmul(muTmp[:,j],muTmp[:,j].T))
+    #         expSigma[:,:,t] = expSigma[:,:,t] - np.matmul(expected_data[:,t],expected_data[:,t].T) + np.eye(nbOut,nbOut)*self.diagRegFact
     
-        return expected_data,expSigma,priorsOutput
+    #     return expected_data,expSigma,priorsOutput
     def conditionTPGMM(self,sampleParam:TaskParams):
         """
         Recondition the TPGMM using product of linearly transformed Gaussian
@@ -502,26 +503,25 @@ class TPGMM:
         if self.version=="fast" or self.version=="compare":
             tpNewMu,tpNewSigma = self.conditionTPGMM(sample.params) 
             expected_data,expSigma,priorsOutput = self.GMR(tpNewMu,tpNewSigma,DataIn,last_input_index,last_output_index)
-        # Slow GMR
-        if self.version=="slow" or self.version=="compare":
-            tpNewMu2,tpNewSigma2 = self.conditionTPGMM_slow(sample.params)
-            expected_data2,expSigma2,priorsOutput2 = self.GMR_slow(tpNewMu2,tpNewSigma2,DataIn,last_input_index,last_output_index)
+        # # Slow GMR
+        # if self.version=="slow" or self.version=="compare":
+        #     tpNewMu2,tpNewSigma2 = self.conditionTPGMM_slow(sample.params)
+        #     expected_data2,expSigma2,priorsOutput2 = self.GMR_slow(tpNewMu2,tpNewSigma2,DataIn,last_input_index,last_output_index)
+        # # Verify vectorized version matches original
+        # if self.version=="compare":
+        #     print() 
+        #     print("Max norm diff new Mu:", np.max(np.abs(tpNewMu - tpNewMu2)))
+        #     print("Max norm diff new Sigma:", np.max(np.abs(tpNewSigma - tpNewSigma2)))
+        #     print("Max norm diff expected Mu:", np.max(np.abs(expected_data2 - expected_data)),expected_data.shape)
+        #     print("Max norm diff expected Sigma:", np.max(np.abs(expSigma2 - expSigma)),expSigma.shape)
+        #     print("Max norm diff expected Priors:", np.max(np.abs(priorsOutput2 - priorsOutput)))
+        #     print() 
 
-        # Verify vectorized version matches original
-        if self.version=="compare":
-            print() 
-            print("Max norm diff new Mu:", np.max(np.abs(tpNewMu - tpNewMu2)))
-            print("Max norm diff new Sigma:", np.max(np.abs(tpNewSigma - tpNewSigma2)))
-            print("Max norm diff expected Mu:", np.max(np.abs(expected_data2 - expected_data)),expected_data.shape)
-            print("Max norm diff expected Sigma:", np.max(np.abs(expSigma2 - expSigma)),expSigma.shape)
-            print("Max norm diff expected Priors:", np.max(np.abs(priorsOutput2 - priorsOutput)))
-            print() 
-
-        # Slow GMR
-        if self.version=="slow" or self.version=="compare":
-            expected_data = expected_data2
-            expSigma = expSigma2
-            priorsOutput = priorsOutput2
+        # # Slow GMR
+        # if self.version=="slow" or self.version=="compare":
+            # expected_data = expected_data2
+            # expSigma = expSigma2
+            # priorsOutput = priorsOutput2
 
         if DS: 
             _,expected_dyn_data = self.dynSysControl(DataIn,expected_data,sample.params,last_input_index,last_output_index,new_dt)
@@ -529,68 +529,68 @@ class TPGMM:
             expected_dyn_data = None
         return expected_data.T,expSigma,priorsOutput,expected_dyn_data
     
-    """
-    reproduce optimal trajectory with GMR first then transforming the expected mean with Task Parameters (with slow and fast implementation)
-    """
-    def repro_gmr_condition(self,DataIn,sampleParam:Sample,last_input_index,last_output_index):
-        nbData = DataIn.shape[0]
-        if DataIn.ndim == 1:
-            DataIn = DataIn[:,np.newaxis]
-        DataIn = DataIn.T # reshape to (num_of_dim,nbData)
-        num_dim_out = last_output_index - last_input_index
+    # """
+    # reproduce optimal trajectory with GMR first then transforming the expected mean with Task Parameters (with slow and fast implementation)
+    # """
+    # def repro_gmr_condition(self,DataIn,sampleParam:Sample,last_input_index,last_output_index):
+    #     nbData = DataIn.shape[0]
+    #     if DataIn.ndim == 1:
+    #         DataIn = DataIn[:,np.newaxis]
+    #     DataIn = DataIn.T # reshape to (num_of_dim,nbData)
+    #     num_dim_out = last_output_index - last_input_index
 
-        # compute conditional probability for each frame
-        MuGMR = np.zeros((num_dim_out,nbData,self.num_of_frames))
-        SigmaGMR = np.zeros((num_dim_out,num_dim_out,nbData,self.num_of_frames))
+    #     # compute conditional probability for each frame
+    #     MuGMR = np.zeros((num_dim_out,nbData,self.num_of_frames))
+    #     SigmaGMR = np.zeros((num_dim_out,num_dim_out,nbData,self.num_of_frames))
         
-        for j in range (self.num_of_frames):
-            # Compute activation weights
-            priors_output = np.zeros((self.num_of_gauss,nbData))
-            for i in range (self.num_of_gauss):
-                priors_output[i,:] = self.priors[i]*self.gaussPDF(Data=DataIn,
-                                                      Mu=self.Mu[0:last_input_index+1,j,i],
-                                                      Sigma=self.Sigma[0:last_input_index+1,0:last_input_index+1,j,i])
-            priors_output = np.clip(priors_output, realmin, realmax) # to prevent numerical issues
-            priors_output = priors_output / np.sum(priors_output,0)
+    #     for j in range (self.num_of_frames):
+    #         # Compute activation weights
+    #         priors_output = np.zeros((self.num_of_gauss,nbData))
+    #         for i in range (self.num_of_gauss):
+    #             priors_output[i,:] = self.priors[i]*self.gaussPDF(Data=DataIn,
+    #                                                   Mu=self.Mu[0:last_input_index+1,j,i],
+    #                                                   Sigma=self.Sigma[0:last_input_index+1,0:last_input_index+1,j,i])
+    #         priors_output = np.clip(priors_output, realmin, realmax) # to prevent numerical issues
+    #         priors_output = priors_output / np.sum(priors_output,0)
 
-            for t in range(nbData):
-                # compute conditional mean
-                for i in range(self.num_of_gauss):
-                    mu_i = self.Mu[0:last_input_index+1,j,i]
-                    mu_o = self.Mu[last_input_index+1:last_output_index+1,j,i]
-                    sigma_oi = self.Sigma[last_input_index+1:last_output_index+1,0:last_input_index+1,j,i]
-                    sigma_io = self.Sigma[0:last_input_index+1,last_input_index+1:last_output_index+1,j,i]
-                    sigma_oo = self.Sigma[last_input_index+1:last_output_index+1,last_input_index+1:last_output_index+1,j,i]
-                    sigma_ii = self.Sigma[0:last_input_index+1,0:last_input_index+1,j,i]
+    #         for t in range(nbData):
+    #             # compute conditional mean
+    #             for i in range(self.num_of_gauss):
+    #                 mu_i = self.Mu[0:last_input_index+1,j,i]
+    #                 mu_o = self.Mu[last_input_index+1:last_output_index+1,j,i]
+    #                 sigma_oi = self.Sigma[last_input_index+1:last_output_index+1,0:last_input_index+1,j,i]
+    #                 sigma_io = self.Sigma[0:last_input_index+1,last_input_index+1:last_output_index+1,j,i]
+    #                 sigma_oo = self.Sigma[last_input_index+1:last_output_index+1,last_input_index+1:last_output_index+1,j,i]
+    #                 sigma_ii = self.Sigma[0:last_input_index+1,0:last_input_index+1,j,i]
 
-                    data = DataIn[:,t]-mu_i
+    #                 data = DataIn[:,t]-mu_i
 
-                    mu_tmp = mu_o + np.matmul(np.matmul(sigma_oi,np.linalg.inv(sigma_ii)),data)
-                    MuGMR[:,t,j] = MuGMR[:,t,j] + priors_output[i,t]*mu_tmp
+    #                 mu_tmp = mu_o + np.matmul(np.matmul(sigma_oi,np.linalg.inv(sigma_ii)),data)
+    #                 MuGMR[:,t,j] = MuGMR[:,t,j] + priors_output[i,t]*mu_tmp
 
-                    sigma_tmp = sigma_oo-np.matmul(np.matmul(sigma_oi,np.linalg.inv(sigma_ii)),sigma_io)
-                    SigmaGMR[:,:,t,j] = SigmaGMR[:,:,t,j] + priors_output[i,t]*(sigma_tmp + np.matmul(np.expand_dims(mu_tmp,axis=-1),np.expand_dims(mu_tmp,axis=-1).T))
-                SigmaGMR[:,:,t,j] = SigmaGMR[:,:,t,j] - np.matmul(np.expand_dims(MuGMR[:,t,j],axis=-1),np.expand_dims(MuGMR[:,t,j],axis=-1).T) + np.eye(num_dim_out,num_dim_out)*self.diagRegFact
+    #                 sigma_tmp = sigma_oo-np.matmul(np.matmul(sigma_oi,np.linalg.inv(sigma_ii)),sigma_io)
+    #                 SigmaGMR[:,:,t,j] = SigmaGMR[:,:,t,j] + priors_output[i,t]*(sigma_tmp + np.matmul(np.expand_dims(mu_tmp,axis=-1),np.expand_dims(mu_tmp,axis=-1).T))
+    #             SigmaGMR[:,:,t,j] = SigmaGMR[:,:,t,j] - np.matmul(np.expand_dims(MuGMR[:,t,j],axis=-1),np.expand_dims(MuGMR[:,t,j],axis=-1).T) + np.eye(num_dim_out,num_dim_out)*self.diagRegFact
 
-        MuTmp = np.zeros((num_dim_out, nbData, self.num_of_frames))
-        SigmaTmp = np.zeros((num_dim_out, num_dim_out, nbData, self.num_of_frames))
+    #     MuTmp = np.zeros((num_dim_out, nbData, self.num_of_frames))
+    #     SigmaTmp = np.zeros((num_dim_out, num_dim_out, nbData, self.num_of_frames))
 
-        for j in range(self.num_of_frames):
-            A = sampleParam.params.A[j,last_input_index+1:last_output_index+1,last_input_index+1:last_output_index+1]
-            b = sampleParam.params.b[j,last_input_index+1:last_output_index+1]
-            MuTmp[:,:,j] = np.matmul(A,MuGMR[:,:,j]) + b
-            for t in range(nbData):
-                SigmaTmp[:,:,t,j] = np.matmul(np.matmul(A,SigmaGMR[:,:,t,j]),A.T)
+    #     for j in range(self.num_of_frames):
+    #         A = sampleParam.params.A[j,last_input_index+1:last_output_index+1,last_input_index+1:last_output_index+1]
+    #         b = sampleParam.params.b[j,last_input_index+1:last_output_index+1]
+    #         MuTmp[:,:,j] = np.matmul(A,MuGMR[:,:,j]) + b
+    #         for t in range(nbData):
+    #             SigmaTmp[:,:,t,j] = np.matmul(np.matmul(A,SigmaGMR[:,:,t,j]),A.T)
 
-        expected_sigma = np.zeros((num_dim_out,num_dim_out,nbData))
-        expected_data = np.zeros((num_dim_out,nbData))
-        for t in range(nbData):
-            SigmaP = np.zeros((num_dim_out,num_dim_out))
-            MuP = np.zeros((num_dim_out))
-            for j in range(self.num_of_frames):
-                SigmaP = SigmaP + np.linalg.inv(SigmaTmp[:,:,t,j])
-                MuP = MuP + np.matmul(np.linalg.inv(SigmaTmp[:,:,t,j]),MuTmp[:,t,j])
-            expected_sigma[:,:,t] = np.linalg.inv(SigmaP)
-            expected_data[:,t] = np.matmul(expected_sigma[:,:,t],MuP)
+    #     expected_sigma = np.zeros((num_dim_out,num_dim_out,nbData))
+    #     expected_data = np.zeros((num_dim_out,nbData))
+    #     for t in range(nbData):
+    #         SigmaP = np.zeros((num_dim_out,num_dim_out))
+    #         MuP = np.zeros((num_dim_out))
+    #         for j in range(self.num_of_frames):
+    #             SigmaP = SigmaP + np.linalg.inv(SigmaTmp[:,:,t,j])
+    #             MuP = MuP + np.matmul(np.linalg.inv(SigmaTmp[:,:,t,j]),MuTmp[:,t,j])
+    #         expected_sigma[:,:,t] = np.linalg.inv(SigmaP)
+    #         expected_data[:,t] = np.matmul(expected_sigma[:,:,t],MuP)
         
-        return expected_data.T,expected_sigma
+    #     return expected_data.T,expected_sigma

@@ -14,21 +14,23 @@ CONST2PI = 2*np.pi
 Class for CuPy Implementation TPGMM
 """
 class TPGMM_cupy:
-    def __init__(self, num_of_gauss, num_of_frames, num_of_dim,priors,kP,kV):
+    def __init__(self, num_of_gauss, num_of_frames, num_of_dim,priors,kP,kV,diagRegFact,version):
         self.num_of_gauss = num_of_gauss
         self.num_of_frames = num_of_frames
         self.num_of_dim = num_of_dim
         self.priors = priors
         self.kP = kP
         self.kV = kV
+        self.version = version
+        self.diagRegFact = diagRegFact
 
     """
     initialize the GMM parameters for each Gaussian in each frame
     """
-    def init_gmm (self,tp_trajs):
+    def init_gmm (self,tp_data):
         diagRegularizationFactor = 1E-4 #Optional regularization term
-        tp_trajs = cp.asarray(np.reshape(tp_trajs.T,(tp_trajs.shape[1]*tp_trajs.shape[2],tp_trajs.shape[0])))
-        sampledTime = tp_trajs[0,:]
+        tp_data = cp.asarray(np.reshape(tp_data.T,(tp_data.shape[1]*tp_data.shape[2],tp_data.shape[0])))
+        sampledTime = tp_data[0,:]
         TimingSep =cp.linspace(np.min(sampledTime),np.max(sampledTime),self.num_of_gauss+1)
         Mu = cp.zeros(shape=(self.num_of_frames*self.num_of_dim, self.num_of_gauss))
         Sigma = cp.zeros(shape=(self.num_of_frames*self.num_of_dim, self.num_of_frames*self.num_of_dim, self.num_of_gauss))
@@ -36,8 +38,8 @@ class TPGMM_cupy:
         # initialize the mean and covariance matrices within each time window
         for i in range(self.num_of_gauss):
             window = cp.where(cp.logical_and(sampledTime>=TimingSep[i],sampledTime<TimingSep[i+1]) == True)[0]
-            Mu[:,i] = cp.mean(tp_trajs[:,window],1)
-            Sigma[:,:,i] = cp.cov(tp_trajs[:,window]) + cp.eye(tp_trajs.shape[0])*diagRegularizationFactor
+            Mu[:,i] = cp.mean(tp_data[:,window],1)
+            Sigma[:,:,i] = cp.cov(tp_data[:,window]) + cp.eye(tp_data.shape[0])*diagRegularizationFactor
             self.priors[i] = window.shape[0]
         self.priors = cp.asarray(self.priors / sum(self.priors)); 
 
@@ -64,22 +66,22 @@ class TPGMM_cupy:
         prob = cp.exp(-0.5*prob) / cp.sqrt(cp.power(CONST2PI,num_of_dim) * cp.abs(cp.linalg.det(Sigma)) + realmin)
         return prob
 
-    def computeGamma(self,tp_trajs):
+    def computeGamma(self,tp_data):
         
-        nbData = tp_trajs.shape[0]
+        nbData = tp_data.shape[0]
         Lik = cp.ones((self.num_of_gauss, nbData))
         GAMMA0 = cp.zeros((self.num_of_gauss, self.num_of_frames, nbData))
         for i in range(self.num_of_gauss):
             for j in range(self.num_of_frames):
-                data_mat = tp_trajs[:,:,j].T
+                data_mat = tp_data[:,:,j].T
                 GAMMA0[i,j,:] = self.gaussPDF(data_mat, self.Mu[:,j,i], self.Sigma[:,:,j,i])                
                 Lik[i,:] = cp.multiply(Lik[i,:],(GAMMA0[i,j,:]))
             Lik[i,:] = Lik[i,:] * self.priors[i]
         GAMMA = Lik / cp.sum(Lik,0)+realmin
         return Lik, GAMMA, GAMMA0
 
-    def fit_em(self,nbMinSteps,nbMaxSteps,maxDiffLL,diagRegFact,updateComp,tp_trajs):
-        tp_trajs_cupy = cp.asarray(tp_trajs)
+    def fit_em(self,nbMinSteps,nbMaxSteps,maxDiffLL,updateComp,tp_data):
+        tp_data_cupy = cp.asarray(tp_data)
         maxDiffLL = cp.asarray(maxDiffLL)
         """
         Fit the data into the TPGMM model
@@ -90,12 +92,12 @@ class TPGMM_cupy:
         diagRegFact:optional regularization
         updateComp:flag to update prior,sigma and mu
         """    
-        nbData = tp_trajs_cupy.shape[0]
+        nbData = tp_data_cupy.shape[0]
         prevLL = cp.asarray(0)
 
         for iter in tqdm(range(nbMaxSteps)):
             # E-step
-            L, GAMMA, GAMMA0 = self.computeGamma(tp_trajs_cupy)
+            L, GAMMA, GAMMA0 = self.computeGamma(tp_data_cupy)
             GAMMA2 = GAMMA / cp.expand_dims(cp.sum(GAMMA,1),axis=-1)
             self.Pix = GAMMA2
 
@@ -106,7 +108,7 @@ class TPGMM_cupy:
                     self.priors[i] = cp.sum(cp.sum(GAMMA[i,:])) / nbData
 
                 for j in range(self.num_of_frames):
-                    data_mat = tp_trajs_cupy[:,:,j].T
+                    data_mat = tp_data_cupy[:,:,j].T
                     # Update Mu
                     if updateComp[1]:
                         self.Mu[:,j,i] = cp.squeeze(cp.matmul(data_mat,cp.expand_dims(GAMMA2[i,:].T,axis=-1)))
@@ -114,7 +116,7 @@ class TPGMM_cupy:
                     # update sigma
                     if updateComp[2]:
                         DataTmp = data_mat - cp.expand_dims(self.Mu[:,j,i],axis=-1)
-                        self.Sigma[:,:,j,i] = cp.matmul(DataTmp,cp.matmul(cp.diag(GAMMA2[i,:]),DataTmp.T)) + cp.eye(DataTmp.shape[0]) * diagRegFact
+                        self.Sigma[:,:,j,i] = cp.matmul(DataTmp,cp.matmul(cp.diag(GAMMA2[i,:]),DataTmp.T)) + cp.eye(DataTmp.shape[0]) * self.diagRegFact
             
             # compute Average Log-likelihood to estimate convergence
             curLL = cp.sum(cp.log(cp.sum(L,0))) / L.shape[1]
@@ -173,7 +175,6 @@ class TPGMM_cupy:
         """
         nbData = DataIn.shape[0]
         nbOut = last_output_index-last_input_index
-        diagRegFact = 1E-8; #Regularization term is optional
         muTmp = cp.zeros((nbOut,self.num_of_gauss))
         expected_data = cp.zeros((nbOut,nbData))
         expSigma = cp.zeros((nbOut,nbOut,nbData))
@@ -191,7 +192,7 @@ class TPGMM_cupy:
             
                 SigmaTmp = tpNewSigma[last_input_index+1:last_output_index+1,last_input_index+1:last_output_index+1,j] - cp.matmul(cp.matmul(tpNewSigma[last_input_index+1:last_output_index+1,0:last_input_index+1,j],cp.linalg.inv(tpNewSigma[0:last_input_index+1,0:last_input_index+1,j])),tpNewSigma[0:last_input_index+1,last_input_index+1:last_output_index+1,j])
                 expSigma[:,:,t] = expSigma[:,:,t] + cp.multiply(priorsOutput[j,t],SigmaTmp+cp.matmul(muTmp[:,j],muTmp[:,j].T))
-            expSigma[:,:,t] = expSigma[:,:,t] - cp.matmul(expected_data[:,t],expected_data[:,t].T) + cp.eye(nbOut,nbOut)*diagRegFact
+            expSigma[:,:,t] = expSigma[:,:,t] - cp.matmul(expected_data[:,t],expected_data[:,t].T) + cp.eye(nbOut,nbOut)*self.diagRegFact
         return expected_data,expSigma,priorsOutput
 
     def reproduce(self,DataIn,sampleParam,last_input_index,last_output_index,DS,new_dt):

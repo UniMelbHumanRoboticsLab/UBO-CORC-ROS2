@@ -39,12 +39,15 @@ def get_optim_nbGauss(data):
     }
     
     all_results_df = pd.DataFrame()
+    idx = np.arange(len(data_scaled))
+    one_split = [(idx, idx)]
     while n_components <= 100:
         grid_search = GridSearchCV(
-            GMM_sk(init_params='k-means++',warm_start=True,max_iter=200), 
+            GMM_sk(init_params='k-means++',max_iter=200), 
             param_grid=param_grid, scoring=gmm_bic_score,
             verbose=3,n_jobs=-1,
-            cv = KFold(n_splits=5, shuffle=True))
+            cv = KFold(n_splits=5, shuffle=True)
+            )
         grid_search.fit(data_scaled)
 
         optim_n_gauss = grid_search.best_params_['n_components']
@@ -55,15 +58,15 @@ def get_optim_nbGauss(data):
         all_results_df = pd.concat([all_results_df, grid_search_df], ignore_index=True)
         
         # either optimal number of gaussian is far from the max limit or the score has converged
-        if optim_n_gauss < n_components-3 or (optim_mean_score-current_best_score)/current_best_score*100 < 10:
-            print(f"Previous best:{current_best_score:.4f}, Current best: {optim_mean_score:.4f}, BIC Change: {(optim_mean_score-current_best_score)/current_best_score*100 :.4f}")
+        if optim_n_gauss < n_components or (optim_mean_score-current_best_score)/current_best_score*100 < 10:
+            print(f"\nPrevious best:{current_best_score:.4f}, Current best: {optim_mean_score:.4f}, BIC Change: {(optim_mean_score-current_best_score)/current_best_score*100 :.4f}")
             print(f"Selected GMM (scaled): {grid_search.best_params_['covariance_type']} model, {optim_n_gauss} components")
             break
         else:
             n_components += 5
-            print(f"{optim_n_gauss} is too close to the limit.")
+            print(f"\n{optim_n_gauss} is too close to the limit.")
             print(f"Previous best:{current_best_score:.4f}, Current best: {optim_mean_score:.4f}, BIC Change: {(optim_mean_score-current_best_score)/current_best_score*100 :.4f}")
-            print(f"Optimizing from {optim_n_gauss-3} to {n_components+1}\n")
+            print(f"Optimizing from {optim_n_gauss-3} to {n_components}\n")
             current_best_score = optim_mean_score
             param_grid = {
                 "n_components": range(optim_n_gauss-3, n_components+1),
@@ -93,12 +96,12 @@ def get_optim_nbGauss(data):
 """
 Function to transform / arrange data into samples / extract task parameters from each sample 
 """
-def transform_data(data,tp,num_of_frames,num_of_dim,num_of_gauss):
+def transform_data(data,tp,num_of_frames,num_of_dim):
     # extract every frame transformation for current sample
     A = np.array([tp[i,:(num_of_dim*num_of_dim)].reshape((num_of_dim,num_of_dim)).transpose() for i in range(num_of_frames)])
     invA = np.array([np.linalg.inv(A[i]) for i in range(num_of_frames)])
     b = np.array([tp[i,(num_of_dim*num_of_dim):].reshape((num_of_dim,1)) for i in range(num_of_frames)])
-    paramsObj = TaskParams(A=A,b=b,invA=invA,num_of_gauss=num_of_gauss,num_of_dim=num_of_dim,num_of_frames=num_of_frames)
+    paramsObj = TaskParams(A=A,b=b,invA=invA)
     
     # arrange the original trajectory referencing inertial frame
     if data is not None:
@@ -115,7 +118,7 @@ def transform_data(data,tp,num_of_frames,num_of_dim,num_of_gauss):
         sampleObj = Sample(params=paramsObj,Data=None,nbData=None)
         tp_traj = None
     return tp_traj,sampleObj
-def arrange_data(data_dict_list,num_of_frames,num_of_dim,num_of_gauss):
+def arrange_data(data_dict_list,num_of_frames,num_of_dim):
     tp_data_list = []
     sample_list = []
     for data_dict in data_dict_list:
@@ -125,7 +128,7 @@ def arrange_data(data_dict_list,num_of_frames,num_of_dim,num_of_gauss):
             data = None
         cur_tp = data_dict["tp"]
 
-        tp_data,sampleObj = transform_data(data,cur_tp,num_of_frames,num_of_dim,num_of_gauss)
+        tp_data,sampleObj = transform_data(data,cur_tp,num_of_frames,num_of_dim)
         tp_data_list.append(tp_data)
         sample_list.append(sampleObj)
     
