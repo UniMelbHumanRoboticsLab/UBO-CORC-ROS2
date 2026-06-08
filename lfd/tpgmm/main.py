@@ -81,6 +81,8 @@ for p in range(1,4):
                         end = times.perf_counter()
                         print(f"Training Success?: {not fail} \t Fast Training:Elapsed \t= {(end - start):.4f}s")
                         retry += 1
+                    if fail:
+                        print(f"{subject_path} failed to converge| Pending post check")
                     with open(tpgmm_file_path, 'wb') as file:
                         # Dump data with highest protocol for best performance
                         pickle.dump(tpgmm,file, protocol=pickle.HIGHEST_PROTOCOL)
