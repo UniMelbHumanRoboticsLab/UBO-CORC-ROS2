@@ -20,6 +20,9 @@ def get_max_norm_diff(arr1,arr2):
 
 class TPGMM:
     def __init__(self, num_of_gauss, num_of_frames, num_of_dim,priors,kP,kV,diagRegFact,version="fast",init_type='kmeans++'):
+        self.model_id = ""
+        self.bic = ""
+        self.training_status = 0
         self.num_of_gauss = num_of_gauss
         self.num_of_frames = num_of_frames
         self.num_of_dim = num_of_dim
@@ -69,6 +72,12 @@ class TPGMM:
             self.Mu = np.zeros((self.num_of_dim,self.num_of_frames,self.num_of_gauss))
             self.Sigma = np.zeros(shape=(self.num_of_dim,self.num_of_dim,self.num_of_frames,self.num_of_gauss))
             
+            # save a copy of the initial parameters
+            self.Mu_init = self.Mu.copy()
+            self.Sigma_init = self.Sigma.copy()
+            self.priors_init = self.priors.copy()
+            
+            
             for i in range(self.num_of_frames):
                 dataCurFrame = tp_data[:,:,i]
                 # initialize the mean for current frame
@@ -100,6 +109,11 @@ class TPGMM:
                     # print(j)
                     self.Mu[:,i,j] = MuCurFrame[j]
                     self.Sigma[:,:,i,j] = SigmaCurFrame[j] + np.eye(self.num_of_dim)*self.diagRegFact
+            
+            # save a copy of the initial parameters
+            self.Mu_init = self.Mu.copy()
+            self.Sigma_init = self.Sigma.copy()
+            self.priors_init = self.priors.copy()
             print(f"Init Priors:\t{self.priors}\tSum:{np.sum(self.priors)}\n")
 
     """

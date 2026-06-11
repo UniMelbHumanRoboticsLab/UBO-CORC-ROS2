@@ -58,13 +58,16 @@ for p in range(1,4):
                 """  
                 tpgmm_file_path = f'{subject_path}/repro/tpgmm_{combi_num}_{sample_num}.pkl'
                 exist = os.path.exists(tpgmm_file_path)
+                retrain = False
                 
-                if exist:
-                    print(f"{tpgmm_file_path} found")
+                if exist and not retrain:
                     with open(tpgmm_file_path, 'rb') as outp:
                         tpgmm = pickle.load(outp)
                         num_of_gauss = tpgmm.num_of_gauss
                         LL = tpgmm.converged_LL
+                        
+                        print(f"{tpgmm.model_id} found")
+                        print(f"Training Status: {tpgmm.training_status}")
                         print(f"Number of Gaussians: {num_of_gauss}")
                         print(f"Converged Likelihood: {LL}")
                 else:
@@ -73,18 +76,23 @@ for p in range(1,4):
                     while fail and retry < 5:
                         print(f"\n====================\nTraining Attempt {retry}")
                         start = times.perf_counter()
-                        num_of_gauss = get_optim_nbGauss(all_data)
+                        num_of_gauss,bic_df = get_optim_nbGauss(all_data)
                         end = times.perf_counter()
                         print(f"BIC Search:Elapsed \t= {(end - start):.4f}s\n")
                         start = times.perf_counter()
                         tpgmm = TPGMM(num_of_gauss,num_of_frames,num_of_dims,priors=np.ones((num_of_gauss,)),kP=0,kV=0,diagRegFact=1e-8,version="fast")
+                        tpgmm.model_id = f'{session_data["exp_id"]}-{session_data["patient_id"]}-{session_data["subject_id"]}-tpgmm_{combi_num}_{sample_num}'
+                        tpgmm.bic = bic_df
                         tpgmm.init_gmm(train_tp_data)
                         LL,fail = tpgmm.fit_em(nbMinSteps=2,nbMaxSteps=100,maxDiffLL=1e-5,updateComp=np.ones((3,1)),tp_data=train_tp_data)
                         end = times.perf_counter()
                         print(f"Training Success?: {not fail} \t Fast Training:Elapsed \t= {(end - start):.4f}s")
                         retry += 1
                     if fail:
+                        tpgmm.training_status = "Fail"
                         print(f"{subject_path} failed to converge| Pending post check")
+                    else:
+                        tpgmm.training_status = "Success"
                     create_dir(f"{subject_path}/repro")
                     with open(tpgmm_file_path, 'wb') as file:
                         # Dump data with highest protocol for best performance

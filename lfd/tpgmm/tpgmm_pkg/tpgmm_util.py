@@ -58,7 +58,7 @@ def get_optim_nbGauss(data):
         all_results_df = pd.concat([all_results_df, grid_search_df], ignore_index=True)
         
         # either optimal number of gaussian is far from the max limit or the score has converged
-        if optim_n_gauss < n_components or (optim_mean_score-current_best_score)/current_best_score*100 < 10:
+        if optim_n_gauss < n_components or (optim_mean_score-current_best_score)/current_best_score*100 < 5:
             print(f"\nPrevious best:{current_best_score:.4f}, Current best: {optim_mean_score:.4f}, BIC Change: {(optim_mean_score-current_best_score)/current_best_score*100 :.4f}")
             print(f"Selected GMM (scaled): {grid_search.best_params_['covariance_type']} model, {optim_n_gauss} components")
             break
@@ -91,7 +91,7 @@ def get_optim_nbGauss(data):
     # )
     
     optim_n_gauss = grid_search.best_params_['n_components']
-    return optim_n_gauss
+    return optim_n_gauss,all_results_df
 
 """
 Function to transform / arrange data into samples / extract task parameters from each sample 
