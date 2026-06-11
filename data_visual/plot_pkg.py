@@ -12,52 +12,41 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from data_process.file_util_pkg import split_reps
 from data_analyse.stats_pkg import compute_central_tendency
 
-
-def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_type="tau",fig_label="Train",plot=False,stats=True):
-    # isolate each variation
-    unique_var_id = []
-    for x in var_id_list:
-        if x in unique_var_id:
-            continue
-        else:
-            unique_var_id.append(f"{x}")
-            
-    data_list_per_var = split_reps(data_list,rep_split)
+# TEX functions
+def get_tex_dim_labels(datatype):
+    def tex_label(datatype: str, dim: str) -> str:
+        if datatype == "tau":
+            return fr"$\tau_{{{dim}}}$"
     
-    # plot gt's mean and ci for each var
-    if plot:
-        fig,ax = compare_multi_dim_data(
-            x_list=time_list,
-            data_list=data_list,
-            dim=data_list[0].shape[1],
-            labels=label_list,
-            xtype="time",
-            datatype=data_type,
-            fig_label=f"{fig_label}",
-            legend=False,
-            split=rep_split,
-            figsize=(16,10)
-        )
-        if stats:
-            plot_stats(
-                time_list[0],
-                data_list_per_var,
-                fig=fig,
-                axs=ax,
-                labels=[f"{x}.{fig_label}" for x in unique_var_id],
-                relimit=False,
-                split=rep_split,
-                datatype=data_type
-            )
-        interactive_plot(fig,ax)
-    return data_list_per_var,unique_var_id
-
+        base, sub = datatype.split("_", 1)
+    
+        if base.endswith("dddot"):
+            base_tex = fr"\dddot{{{base[:-5]}}}"
+        elif base.endswith("ddot"):
+            base_tex = fr"\ddot{{{base[:-4]}}}"
+        elif base.endswith("dot"):
+            base_tex = fr"\dot{{{base[:-3]}}}"
+        else:
+            base_tex = base
+    
+        return fr"${base_tex}_{{{dim}}}$"
+    dim_labels = [tex_label(datatype, i) for i in [
+        r'tru,int-ext-rot', r'tru,abd-adduct', r'tru,flex-extend',
+        r'clav,dep-elev', r'clav,prot-retract',
+        r'should,flex-extend', r'should,abd-adduct', r'should,int-ext-rot',
+        r'elb,flex-extend', r'elb,pro-supinate']]
+    
+    return dim_labels
+# 2D plotting
 """ get muliti color """
 def get_n_colors(n_colors:int,split=4,shuffle=False):
     if shuffle:
         cmap = plt.colormaps['Dark2']
     else:
         cmap = plt.colormaps['Set1']  
+    if n_colors % split == 0 and n_colors/split >= 10:
+        cmap = plt.colormaps['tab10']  
+        
     # If n_colors is a multiple of split, get n/split colors and repeat each split times
     if n_colors > 0 and n_colors % split == 0 and n_colors/split > 1:
         base_n = n_colors // split
@@ -66,7 +55,6 @@ def get_n_colors(n_colors:int,split=4,shuffle=False):
     else:
         colors = [cmap(i / (n_colors)) for i in range(n_colors)]
     return colors
-
 """ plot confidence interval with mean and std for n-lists list (each element in the list is a list of  2d arrays)"""
 def plot_stats(x:np.ndarray, data_list:list, fig=None,axs=None,labels:list=[],legend=True,relimit=False,dist="gaussian",split=4,datatype="q"):
     if "rad" in datatype:
@@ -115,7 +103,6 @@ def plot_stats(x:np.ndarray, data_list:list, fig=None,axs=None,labels:list=[],le
     if legend:
         handles, labels = axs[0].get_legend_handles_labels()
         fig.legend(handles, labels,loc='lower right', ncol=3, draggable=True)
-
 """compare multi dim data function individually from multiple sources"""
 def compare_multi_dim_data(x_list:list,data_list:list,
                            dim:int,labels:list,xtype:str,datatype:str,
@@ -152,30 +139,13 @@ def compare_multi_dim_data(x_list:list,data_list:list,
                             'clav_dep_ev','clav_prot_ret',
                             'shoulder_fe','shoulder_aa','shoulder_ie',
                             'elbow_fe','elbow_ps','wrist_fe','wrist_dev']]
+        elif dim == 10:
+            dim_labels = get_tex_dim_labels(datatype)
         else:
-            def tex_label(datatype: str, dim: str) -> str:
-                if datatype == "tau":
-                    return fr"$\tau_{{{dim}}}$"
+            dim_labels = []
             
-                base, sub = datatype.split("_", 1)
-            
-                if base.endswith("dddot"):
-                    base_tex = fr"\dddot{{{base[:-5]}}}"
-                elif base.endswith("ddot"):
-                    base_tex = fr"\ddot{{{base[:-4]}}}"
-                elif base.endswith("dot"):
-                    base_tex = fr"\dot{{{base[:-3]}}}"
-                else:
-                    base_tex = base
-            
-                return fr"${base_tex}_{{{dim}}}$"
-            dim_labels = [tex_label(datatype, i) for i in [
-                r'tru-int-ext-rot', r'tru-abd-adduct', r'trunk-flex-extension',
-                r'clav-dep-elev', r'clav-prot-retract',
-                r'should-flex-extend', r'should-abd-adduct', r'should-int-ext-rot',
-                r'elb-flex-extend', r'elb-pro-supinate']]
         for i in range(dim):
-            if dim >= 3:
+            if dim >= 3 and datatype != "spread":
                 axs.append(fig.add_subplot(int(np.ceil(dim/3)),3,i+1))
             else:
                 axs.append(fig.add_subplot(1,dim,i+1))
@@ -199,9 +169,8 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             (-30, 190) # elbow ps
         ]
     else:
-        temp_arr = np.array(data_list)
+        temp_arr = np.vstack(data_list)
         limits = [np.min(temp_arr),np.max(temp_arr)]
-
 
     for i in range(dim):        
         if len(data_list) > 0:
@@ -245,7 +214,45 @@ def compare_multi_dim_data(x_list:list,data_list:list,
 
     plt.tight_layout()
     return fig,axs
+""" plot zero velocity crossings for 1D velocity data"""
+def plot_velocity_zero_crossings(time, velocity, ax):
+    """ find zero crossing points in 1D velocity data and return their indices and times"""
+    def find_zero_velocity_crossings(velocity: np.ndarray, time: np.ndarray = None):
+        """
+        Find indices where velocity crosses zero (sign change).
+        
+        Args:
+            velocity: 1D array of velocity values
+            time: Optional time array for interpolating exact crossing times
+            
+        Returns:
+            crossing_indices: Indices where zero crossings occur
+            crossing_times: Interpolated times (if time provided), else same as indices
+        """
+        # Find sign changes
+        sign_changes = np.where(np.diff(np.sign(velocity)))[0]
+        
+        crossing_indices = []
+        crossing_times = []
+        
+        for idx in sign_changes:
+            crossing_indices.append(idx)
+            
+            # Interpolate exact crossing time
+            if time is not None:
+                t_cross = time[idx] + (time[idx + 1] - time[idx]) * (-velocity[idx]) / (velocity[idx + 1] - velocity[idx])
+                crossing_times.append(t_cross)
+            else:
+                crossing_times.append(idx)
+        
+        return crossing_indices, crossing_times
 
+    """Plot velocity and mark zero crossings."""
+    # Find and mark crossings
+    indices, times = find_zero_velocity_crossings(velocity, time)
+    
+    for t_cross in times:
+        ax.axvline(t_cross, color='red', linestyle='-', alpha=0.7)
 """ hide / show plot interactively (click to hide/show) """
 def interactive_plot(fig, axs):
     handles, labels = axs[0].get_legend_handles_labels()
@@ -258,7 +265,7 @@ def interactive_plot(fig, axs):
         leghandle.set_picker(5)  # Works for both Line2D and Patch objects
         lined[leghandle] = {
             "art":[],
-            "var_id":sample_id[0],
+            "group_id":sample_id[0],
             "label":label
             }
         for ax in axs:
@@ -280,7 +287,7 @@ def interactive_plot(fig, axs):
         legline = event.artist
         if legline in lined:
             label = lined[legline]["label"]
-            var_id = lined[legline]["var_id"]
+            group_id = lined[legline]["group_id"]
             origlines = lined[legline]["art"]
             vis = not origlines[0].get_visible() if origlines else True
             if "median" not in label:
@@ -292,7 +299,7 @@ def interactive_plot(fig, axs):
             else:
                 #hide/show all items for that variations if pressed mean or CI
                 for (leghandle,leghandle_dict) in lined.items():
-                    if leghandle_dict["var_id"] == var_id:
+                    if leghandle_dict["group_id"] == group_id:
                         origlines = leghandle_dict["art"]
                         for origline in origlines:
                             origline.set_visible(vis)
@@ -315,7 +322,208 @@ def interactive_plot(fig, axs):
         fig.canvas.draw()
     fig.canvas.mpl_connect('resize_event', on_resize)
     return leg
+def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_type="tau",fig_label="Train",plot=False,stats=True):
+    # isolate each variation
+    unique_var_id = []
+    for x in var_id_list:
+        if x in unique_var_id:
+            continue
+        else:
+            unique_var_id.append(f"{x}")
+            
+    data_list_per_var = split_reps(data_list,rep_split)
+    
+    # plot gt's mean and ci for each var
+    if plot:
+        fig,ax = compare_multi_dim_data(
+            x_list=time_list,
+            data_list=data_list,
+            dim=data_list[0].shape[1],
+            labels=label_list,
+            xtype="time",
+            datatype=data_type,
+            fig_label=f"{fig_label}",
+            legend=False,
+            split=rep_split,
+            figsize=(16,10)
+        )
+        if stats:
+            plot_stats(
+                time_list[0],
+                data_list_per_var,
+                fig=fig,
+                axs=ax,
+                labels=[f"{x}" for x in unique_var_id],
+                relimit=False,
+                split=rep_split,
+                datatype=data_type
+            )
+        interactive_plot(fig,ax)
+    return data_list_per_var,unique_var_id
+""" plot the therapist variation spread"""
+def plot_spread(x_list:list,data_list:list,
+                           dim:int,labels:list,xtype:str,datatype:str,
+                           split=4,shuffle=False,
+                           sharex:bool=True,semilogx:bool=False,legend:bool=True,
+                           fig_label:str="Take1",
+                           show_stats:bool=False,show_zero_cross:bool=False,
+                           prev_fig=None,prev_ax=None,loc="+2000+100",figsize=(45,25)):
+    if "rad" in datatype:
+        temp = [np.rad2deg(data) for data in data_list]
+        data_list = temp
+    colors = get_n_colors(len(labels),split=1)
+    labels = get_tex_dim_labels(datatype)
+    
+    # init fig, axes
+    if prev_fig is not None and prev_ax is not None:
+        fig = prev_fig
+        axs = prev_ax
+    else:
+        fig = plt.figure(num=fig_label,tight_layout=True)
+        # fig = plt.figure(figsize=figsize,num=fig_label,tight_layout=True)
+        fig.canvas.manager.window.wm_geometry(loc)
+        
+        axs = []
+        sub_num = int(dim/6)
+        var_labels = [f"var{i}" for i in range(1,7)]
+        sub_labels = [f"sub{i}" for i in range(11,11+sub_num)]
+        for i in range(dim):
+            j,k = int(i/6),i%6
+            axs.append(fig.add_subplot(sub_num,6,i+1))
+            axs[i].grid(True)
+            if j == sub_num-1:
+                axs[i].set_xlabel(f'{xtype}',fontsize=10)
+                axs[i].tick_params(axis="both", which="major", labelsize=10)
+            else:
+                axs[i].xaxis.set_visible(False)
+            if j == 0:
+                axs[i].set_title(f'{var_labels[k]}',fontsize=10)
+            if k == 0:
+                axs[i].set_ylabel(f'{sub_labels[j]}',fontsize=10)
+            
+    # plot actual data
+    for i,(sub,x,data) in enumerate(zip([f"sub{i}" for i in range(11,11+sub_num)],x_list,data_list)):
+        for j,(x_var,data_var) in enumerate(zip(x,data)):
+            for dim in range(10):
+                for k,(x_rep,data_rep) in enumerate(zip(x_var,data_var)):
+                    linewidth = 2
+                    alpha = 1
+                    if k == 0:
+                        line, = axs[i*6+j].plot(x_rep, data_rep[:, dim], ls='-',color=colors[dim], label=labels[dim], alpha=alpha, linewidth=linewidth,picker=5)
+                    else:
+                        line, = axs[i*6+j].plot(x_rep, data_rep[:, dim], ls='-',color=colors[dim], alpha=alpha, linewidth=linewidth,picker=5)
+                    line.line_id = f"{labels[dim]}.sub{i+11}.Var{j+1}.Rep{k+1}"
+    
+    # # plot stats
+    # if show_stats:
+    #     plot_stats(x_list[0],[data_list], fig=fig,axs=axs,labels=["data"],legend=False,dist="gaussian")
+    
+    fig.tight_layout(rect=[0.01, 0, 0.96, 0.99]) 
+    return fig,axs
+def interactive_spread(fig, axs):
+    handles, labels = axs[0].get_legend_handles_labels()
+    leg = fig.legend(handles, labels, loc='right', ncol=1, draggable=True,frameon=True,
+            fontsize='small',
+            markerscale=1.5,
+            scatterpoints=1)
+    
+    # Map legend handles to original artists across all axes
+    lined = {}
+    for leghandle, label in zip(leg.legend_handles, labels):
+        leghandle.set_picker(5)  # Works for both Line2D and Patch objects
+        lined[leghandle] = {
+            "art":[],
+            "label":label
+            }
+        for ax in axs:
+            # Check lines
+            for line in ax.get_lines():
+                line_id = line.line_id.split(".")
+                if line_id[0] == label:
+                    lined[leghandle]["art"].append(line)
+            # # Check patches (e.g., bar plots)
+            # for patch in ax.patches:
+            #     if patch.get_label() == label:
+            #         lined[leghandle]["art"].append(patch)
+            # # Check collections (e.g., fill_between creates PolyCollection)
+            # for coll in ax.collections:
+            #     if coll.get_label() == label:
+            #         lined[leghandle]["art"].append(coll)
 
+    
+    def on_pick(event):
+        legline = event.artist
+        if legline in lined:
+            label = lined[legline]["label"]
+            origlines = lined[legline]["art"]
+            
+            vis = not origlines[0].get_visible() if origlines else True
+            all_y = []
+            if label:
+                # hide/show individual plots
+                for origline in origlines:
+                    origline.set_visible(vis)
+                    all_y.append(origline._y[:,np.newaxis])
+                all_y = np.vstack(all_y)
+                limits = np.min(all_y),np.max(all_y)
+                
+                # reset the axis limits
+                for ax in axs:
+                    ax.set_ylim(limits[0]-0.3*abs(limits[0]),limits[1]+0.3*abs(limits[1]))
+                legline.set_alpha(1.0 if vis else 0.2)
+                fig.canvas.draw()
+            # else:
+            #     #hide/show all items for that variations if pressed mean or CI
+            #     for (leghandle,leghandle_dict) in lined.items():
+            #         if leghandle_dict["group_id"] == group_id:
+            #             origlines = leghandle_dict["art"]
+            #             for origline in origlines:
+            #                 origline.set_visible(vis)
+            #             leghandle.set_alpha(1.0 if vis else 0)
+            #     fig.canvas.draw()
+        elif isinstance(legline, Line2D) and legline.get_visible():
+            print(legline.line_id)
+    fig.canvas.mpl_connect('pick_event', on_pick)
+        
+    def on_click(event):
+        # Right-click (button 3) to hide all
+        if event.button == 3:
+            for leghandle, origlines in lined.items():
+                for origline in origlines["art"]:
+                    origline.set_visible(False)
+                leghandle.set_alpha(0.2)
+            fig.canvas.draw()
+    fig.canvas.mpl_connect('button_press_event', on_click)
+    
+    def on_resize(event):
+        fig.tight_layout(rect=[0.01, 0, 0.96, 0.99]) 
+        fig.canvas.draw()
+    fig.canvas.mpl_connect('resize_event', on_resize)
+    return leg
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 3D plotting
 """plot 3d traj function"""
 def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None,label="3D Traj"):
     n_colors = len(traj_list)
@@ -343,7 +551,6 @@ def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None,label="3D
         return fig,ax
     else:
         return fig,ax
-
 """ create a custom 3d figure with scroll zoom and easier mouse rotations"""
 def create_custom_3d_fig(num="Hand Traj"):
     # custom 3d fig with better mouse rotation and scroll wheel zoom
@@ -442,46 +649,26 @@ def plot_3d_submovements(traj,sbmvmt_indices,skeleton):
 
     return ax,fig
 
-""" plot zero velocity crossings for 1D velocity data"""
-def plot_velocity_zero_crossings(time, velocity, ax):
-    """ find zero crossing points in 1D velocity data and return their indices and times"""
-    def find_zero_velocity_crossings(velocity: np.ndarray, time: np.ndarray = None):
-        """
-        Find indices where velocity crosses zero (sign change).
-        
-        Args:
-            velocity: 1D array of velocity values
-            time: Optional time array for interpolating exact crossing times
-            
-        Returns:
-            crossing_indices: Indices where zero crossings occur
-            crossing_times: Interpolated times (if time provided), else same as indices
-        """
-        # Find sign changes
-        sign_changes = np.where(np.diff(np.sign(velocity)))[0]
-        
-        crossing_indices = []
-        crossing_times = []
-        
-        for idx in sign_changes:
-            crossing_indices.append(idx)
-            
-            # Interpolate exact crossing time
-            if time is not None:
-                t_cross = time[idx] + (time[idx + 1] - time[idx]) * (-velocity[idx]) / (velocity[idx + 1] - velocity[idx])
-                crossing_times.append(t_cross)
-            else:
-                crossing_times.append(idx)
-        
-        return crossing_indices, crossing_times
 
-    """Plot velocity and mark zero crossings."""
-    # Find and mark crossings
-    indices, times = find_zero_velocity_crossings(velocity, time)
-    
-    for t_cross in times:
-        ax.axvline(t_cross, color='red', linestyle='-', alpha=0.7)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# stats plotting
 """ plot violin plots"""
 def remove_outliers_iqr(data, multiplier=1.5):
     """

@@ -18,13 +18,15 @@ from pyCORC.pycorc_io.xsens.ub_pckg.ub import ub
 from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
 import FreeSimpleGUI as sg
 
-for p in range(1,4):
+p_start = 2
+sub_start  = 14
+for p in range(p_start,4):
     if p == 1:
         sm_num = 2
     else:
         sm_num=4
         
-    for sub in range(11,25):
+    for sub in range(sub_start,25):
         """ init session parameters and perform train / test / validation spliting"""
         session_data = {
             "exp_id":"exp1",
@@ -331,12 +333,12 @@ for p in range(1,4):
                 hand_3d_traj_list.append(hand_pos_traj)
                 sbmvmt_list.append(indices_traj)  
                 rep_label_list.append(f'{var}.Rep{rep}')
-        if not exist:
-            fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list,label=f"{session_data['subject_id']}_{session_data['patient_id']}")
-            split_plot_all(session_data["variants"],time_list,q_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="q_rad",fig_label=f"q_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
-            split_plot_all(session_data["variants"],time_list,sbmvmt_list,rep_label_list,rep_split=session_data["num_rep"],data_type="index",fig_label=f"index data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+        if exist:
+            # fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list,label=f"{session_data['subject_id']}_{session_data['patient_id']}")
+            # split_plot_all(session_data["variants"],time_list,q_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="q_rad",fig_label=f"q_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+            # split_plot_all(session_data["variants"],time_list,sbmvmt_list,rep_label_list,rep_split=session_data["num_rep"],data_type="index",fig_label=f"index data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
             split_plot_all(session_data["variants"],time_list,tau_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="tau",fig_label=f"tau data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
-            split_plot_all(session_data["variants"],time_list,qdot_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="qdot_rad",fig_label=f"qdot_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+            # split_plot_all(session_data["variants"],time_list,qdot_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="qdot_rad",fig_label=f"qdot_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
             plt.show()
             
 # compare_multi_dim_data(
