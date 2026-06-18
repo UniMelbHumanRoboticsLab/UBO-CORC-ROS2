@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import integrate
 from dtaidistance import dtw_ndim,dtw
-from stats_pkg import compute_central_tendency
+from stats_pkg import compute_central_tendency,remove_outliers_iqr
 
 q = ['trunk_ie','trunk_aa','trunk_fe',
 	'clav_dep_ev','clav_prot_ret',
@@ -14,24 +14,29 @@ def compute_norm_error(recon,comparator):
     
     denum = max_med_range.copy()
     d = recon-comparator["median"]
+    # if residual below median, use the min-med range
     d_neg = d<0
     denum[d_neg] = min_med_range[d_neg]
     
     norm_error = d/denum
-    average_norm_error = np.mean(norm_error,axis=0)
+    cleaned,_,_ = remove_outliers_iqr(norm_error,3)
+    # average_norm_error = np.array([np.mean(dim_norm_error,axis=0) for dim_norm_error in cleaned])
+    average_norm_error = np.mean(cleaned,axis=0)
+    # average_norm_error = np.mean(norm_error,axis=0)
     return average_norm_error
 
 def compute_norm_tau_peak_diff(recon,comparator):
     peak_tau_recon = compute_tau_peak(recon,0)
     p = np.array(comparator["samples"])
     peak_tau_samples = compute_tau_peak(p,1)
-    mean_peak_tau,median_peak_tau,max_peak_tau,min_peak_tau = compute_central_tendency(peak_tau_samples)
+    mean_peak_tau,median_peak_tau,max_peak_tau,min_peak_tau,_,_ = compute_central_tendency(peak_tau_samples)
      
     max_med_range = max_peak_tau-median_peak_tau
     min_med_range = min_peak_tau-median_peak_tau
       
     denum = max_med_range.copy()
     d = peak_tau_recon - median_peak_tau
+    # if residual below median, use the min-med range
     d_neg = d<0
     denum[d_neg] = min_med_range[d_neg]
     norm_error = d/denum
@@ -85,9 +90,9 @@ if __name__ == "__main__":
     
     import sys,os
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from data_visual.plot_pkg import compare_multi_dim_data,interactive_plot
+    from data_visual.plot_pkg import plot_multi_dim,interactive_plot
     
-    fig,axis = compare_multi_dim_data(
+    fig,axis = plot_multi_dim(
         [time,time,time],
         [cs,sc,sc2],
         dim = 2,
