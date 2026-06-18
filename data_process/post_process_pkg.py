@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import FreeSimpleGUI as sg
 
 sys.path.append(os.path.join(os.path.dirname(__file__),".."))
-from data_visual.plot_pkg import compare_multi_dim_data,plot_3d_submovements
+from data_visual.plot_pkg import plot_multi_dim,plot_3d_submovements
 from scipy.interpolate import CubicSpline
 
 from dtaidistance import dtw_ndim,dtw
@@ -61,7 +61,7 @@ def lpf(time_array,data,ts=0.01,fc=50,filter_type="low",datatype="trajectory",pl
     db_arr = np.array(db_arr).T
 
     if plot_results:
-        # compare_multi_dim_data(
+        # plot_multi_dim(
         #     [xf, xf],
         #     [fft_arr, fft_filt_arr],
         #     dim,
@@ -71,7 +71,7 @@ def lpf(time_array,data,ts=0.01,fc=50,filter_type="low",datatype="trajectory",pl
         #     semilogx=True,
         #     fig_label=f'FFT_{datatype}'
         # )
-        # compare_multi_dim_data(
+        # plot_multi_dim(
         #     [w],
         #     [db_arr],
         #     dim,
@@ -81,7 +81,7 @@ def lpf(time_array,data,ts=0.01,fc=50,filter_type="low",datatype="trajectory",pl
         #     semilogx=True,
         #     fig_label=f'FreqResp_{datatype}'
         # )
-        compare_multi_dim_data(
+        plot_multi_dim(
             [time_array,time_array],
             [data, filtered_data],
             dim,
@@ -172,7 +172,7 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
         from mpl_point_clicker import clicker
         placehold = sg.popup('',location=(1550,300),non_blocking=True)  
         plot_3d_submovements(hand_traj,sbmvmt_indices=sbmvmt_indices,skeleton=skeleton)
-        fig,axs = compare_multi_dim_data([time_array], [hand_speed], 1, ['speed'], 'Time', 'Hand Speed',fig_label= data_path)
+        fig,axs = plot_multi_dim([time_array], [hand_speed], 1, ['speed'], 'Time', 'Hand Speed',fig_label= data_path)
         klicker = clicker(axs[0], ["event"], markers=["x"])
         
         from typing import Tuple
@@ -279,7 +279,7 @@ def rescale(t_old, data,t_new,datatype="trajectory",plot_results=False):
     data_interp = interp(t_new)
     dim = data.shape[1]
     if plot_results:
-        compare_multi_dim_data(
+        plot_multi_dim(
             [t_old,t_new],
             [data, data_interp],
             dim,

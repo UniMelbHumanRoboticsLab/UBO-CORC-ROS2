@@ -13,7 +13,7 @@ from post_process_pkg import lpf,calc_fixed_diff,calc_mag,segment_sbmvmts,rescal
 from file_util_pkg import get_raw_data,separate_train_test_val,create_dir
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from data_visual.plot_pkg import compare_multi_dim_data,plot_3d_trajectory,split_plot_all,interactive_plot
+from data_visual.plot_pkg import plot_multi_dim,plot_3d_trajectory,split_plot_all,interactive_plot
 from pyCORC.pycorc_io.xsens.ub_pckg.ub import ub
 from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
 import FreeSimpleGUI as sg
@@ -230,7 +230,7 @@ for p in range(p_start,4):
                     align_dim = 20
                     paths = align_dtw(reference_interaction[:,0:align_dim],target_interaction[:,0:align_dim])
                     placehold = sg.popup('',location=(1550,300),non_blocking=True)  
-                    f1,a1 = compare_multi_dim_data(
+                    f1,a1 = plot_multi_dim(
                             [actual_time_data,actual_time_data,actual_time_data],
                             [q_traj_rad,warp_target_to_ref(reference_interaction,q_traj_rad,paths),reference_interaction[:,0:10]],
                             10,
@@ -241,7 +241,7 @@ for p in range(p_start,4):
                             semilogx=False,
                             fig_label=f"joint angle rad {align_dim}",
                             show_stats=False,loc="+2000+800")
-                    f2,a2 = compare_multi_dim_data(
+                    f2,a2 = plot_multi_dim(
                             [actual_time_data,actual_time_data,actual_time_data],
                             [qdot_traj_rad,warp_target_to_ref(reference_interaction,qdot_traj_rad,paths),reference_interaction[:,10:20]],
                             10,
@@ -253,7 +253,7 @@ for p in range(p_start,4):
                             fig_label=f"joint angle vel rad/s {align_dim}",
                             show_stats=False,loc="+2900+800",
                             show_zero_cross=True)
-                    f3,a3 = compare_multi_dim_data(
+                    f3,a3 = plot_multi_dim(
                             [actual_time_data,actual_time_data,actual_time_data],
                             [taus_traj["total"]["filtered-rescaled"],warp_target_to_ref(reference_interaction,taus_traj["total"]["filtered-rescaled"],paths),reference_interaction[:,20:]],
                             10,
@@ -274,7 +274,7 @@ for p in range(p_start,4):
                     haih = actual_time_data[:np.newaxis]
                     indices_traj,sbmvmt_indices = segment_sbmvmts(actual_time_data[:np.newaxis],hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt',redo=False,skeleton={"ub":skeleton,"q":q_traj})
                     placehold.close()
-                    # f3,a3 = compare_multi_dim_data(
+                    # f3,a3 = plot_multi_dim(
                     #         [actual_time_data,actual_time_data,actual_time_data],
                     #         [indices_traj,warp_target_to_ref(reference_interaction,indices_traj,paths),reference_index],
                     #         1,
@@ -341,7 +341,7 @@ for p in range(p_start,4):
             # split_plot_all(session_data["variants"],time_list,qdot_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="qdot_rad",fig_label=f"qdot_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
             plt.show()
             
-# compare_multi_dim_data(
+# plot_multi_dim(
 #         time_list,
 #         qdot_traj_list,
 #         10,
@@ -353,7 +353,7 @@ for p in range(p_start,4):
 #         fig_label=f"joint angle velocity - rad/s",
 #         show_stats=True)
 
-# compare_multi_dim_data(
+# plot_multi_dim(
 #         time_list,
 #         sbmvmt_list,
 #         1,
@@ -366,7 +366,7 @@ for p in range(p_start,4):
 
 # sanity check velocity (zero crossing should match peak positions)
 # for i,(qtraj,qdot_traj) in enumerate(zip(q_traj_list,qdot_traj_list)):
-#     compare_multi_dim_data(
+#     plot_multi_dim(
 #             [time_data_norm,time_data_norm],
 #             [qtraj,qdot_traj],
 #             10,

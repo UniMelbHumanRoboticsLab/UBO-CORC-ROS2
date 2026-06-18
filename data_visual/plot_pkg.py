@@ -3,6 +3,7 @@ import matplotlib as mpl
 # plt.rcParams.update({'font.size': 13})
 # mpl.rcParams["text.usetex"] = True
 from matplotlib.patches import Patch, Rectangle
+import mplcursors
 from matplotlib.lines import Line2D
 from scipy import stats
 import numpy as np
@@ -10,9 +11,10 @@ import numpy as np
 import sys,os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from data_process.file_util_pkg import split_reps
-from data_analyse.stats_pkg import compute_central_tendency
+from data_analyse.stats_pkg import compute_central_tendency,remove_outliers_iqr
 
-# TEX functions
+#================HELPER FUNCTIONS====================================
+"""TEX functions"""
 def get_tex_dim_labels(datatype):
     def tex_label(datatype: str, dim: str) -> str:
         if datatype == "tau":
@@ -37,7 +39,6 @@ def get_tex_dim_labels(datatype):
         r'elb,flex-extend', r'elb,pro-supinate']]
     
     return dim_labels
-# 2D plotting
 """ get muliti color """
 def get_n_colors(n_colors:int,split=4,shuffle=False):
     if shuffle:
@@ -55,56 +56,11 @@ def get_n_colors(n_colors:int,split=4,shuffle=False):
     else:
         colors = [cmap(i / (n_colors)) for i in range(n_colors)]
     return colors
-""" plot confidence interval with mean and std for n-lists list (each element in the list is a list of  2d arrays)"""
-def plot_stats(x:np.ndarray, data_list:list, fig=None,axs=None,labels:list=[],legend=True,relimit=False,dist="gaussian",split=4,datatype="q"):
-    if "rad" in datatype:
-        temp = [np.rad2deg(data) for data in data_list]
-        data_list = temp
-    if relimit:
-        temp_arr = np.array(data_list)
-        limits = [np.min(temp_arr),np.max(temp_arr)]
-        for i, ax in enumerate(axs):
-            axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
+#================HELPER FUNCTIONS END================================
 
-    colors = get_n_colors(len(data_list),split=1)
-    for data,color,label in zip(data_list,colors,labels):
-        if dist == "gaussian":
-            
-            mean,median,max,min = compute_central_tendency(data)
-            
-            # mean = np.mean(np.array(data), axis=0)
-            # std = np.std(np.array(data), axis=0, ddof=0)  # ddof=1 for sample std
-            # n = np.array(data).shape[0]  # number of repetitions
-            # # 95% CI using t-distribution
-            # sem = std / np.sqrt(n)  # standard error of mean
-            # from scipy import stats
-            # t_crit = stats.t.ppf(0.975, df=n-1) 
-            # ci_95 = t_crit * sem  # ✅ Margin of error           
-            # u = mean + ci_95
-            # l = mean - ci_95
-            
-            for i, ax in enumerate(axs):
-                # plot median
-                ax.plot(x, median[:, i], ls=':',color=color, label=f"{label}.median", alpha=1, linewidth=1)
-                # Plot min max bound
-                ax.fill_between(x, min[:, i], max[:, i], 
-                                alpha=0.6, color=color, label=f'{label}.Bound')
-        else:
-            print("iqr")
-            Q1 = np.percentile(np.array(data), 25,axis=0)  # 25th percentile
-            Q2 = np.percentile(np.array(data), 50,axis=0)  # Median (50th percentile)
-            Q3 = np.percentile(np.array(data), 75,axis=0)  # 75th percentile
-
-            for i, ax in enumerate(axs):
-                ax.plot(x, Q2[:, i], ls='-',color=color, label=f"{label}.mean", alpha=0.7, linewidth=3)
-                # Plot 95% CI band
-                ax.fill_between(x, Q1[:, i], Q3[:, i], 
-                                alpha=0.3, color=color, label=f'{label}.CI95')
-    if legend:
-        handles, labels = axs[0].get_legend_handles_labels()
-        fig.legend(handles, labels,loc='lower right', ncol=3, draggable=True)
-"""compare multi dim data function individually from multiple sources"""
-def compare_multi_dim_data(x_list:list,data_list:list,
+#================2D DATA VISUALIZATION===============================
+"""plot each axis as 1 dimension from multiple sources"""
+def plot_multi_dim(x_list:list,data_list:list,
                            dim:int,labels:list,xtype:str,datatype:str,
                            split=4,shuffle=False,
                            sharex:bool=True,semilogx:bool=False,legend:bool=True,
@@ -143,7 +99,8 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             dim_labels = get_tex_dim_labels(datatype)
         else:
             dim_labels = []
-            
+        
+        annotations = []
         for i in range(dim):
             if dim >= 3 and datatype != "spread":
                 axs.append(fig.add_subplot(int(np.ceil(dim/3)),3,i+1))
@@ -153,6 +110,12 @@ def compare_multi_dim_data(x_list:list,data_list:list,
             axs[i].set_ylabel(f'{dim_labels[i]}',fontsize=10)
             axs[i].tick_params(axis="both", which="major", labelsize=10)
             axs[i].grid(True)
+            axs[i].annotation = axs[i].annotate('', xy=(0, 0), xytext=(10, 10),
+                                     textcoords='offset points',
+                                     bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.7),
+                                     arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0'))
+            # # Store annotation object
+            axs[i].annotation.set_visible(False)
             
     # reset the limits
     if datatype == 'q2' or datatype == 'q_rad2':
@@ -195,16 +158,18 @@ def compare_multi_dim_data(x_list:list,data_list:list,
         alpha = 1
         for j,ax in enumerate(axs):
             if semilogx:
-                ax.semilogx(x_array_i[:, j], data_array_i[:, j], ls='-',color=color, label=label, alpha=alpha, linewidth=linewidth)
+                ax.semilogx(x_array_i[:, j], data_array_i[:, j], ls='-',color=color, label=label, alpha=alpha, linewidth=linewidth,picker=5)
             else:
-                ax.plot(x_array_i[:, j], data_array_i[:, j], ls='-',color=color, label=label, alpha=alpha, linewidth=linewidth)
-    
+                ax.plot(x_array_i[:, j], data_array_i[:, j], ls='-',color=color, label=label, alpha=alpha, linewidth=linewidth,picker=5)
+                
+
     # plot stats
     if show_stats:
         plot_stats(x_list[0],[data_list], fig=fig,axs=axs,labels=["data"],legend=False,dist="gaussian")
 
-    # sanity check for zero crossings cuz why not
+    
     for j,ax in enumerate(axs):
+        # sanity check for zero crossings cuz why not
         if show_zero_cross:
             plot_velocity_zero_crossings(x_array_i[:, j], data_list[0][:, j], ax)
     
@@ -255,66 +220,75 @@ def plot_velocity_zero_crossings(time, velocity, ax):
         ax.axvline(t_cross, color='red', linestyle='-', alpha=0.7)
 """ hide / show plot interactively (click to hide/show) """
 def interactive_plot(fig, axs):
+    for j,ax in enumerate(axs):
+        # crs = mplcursors.cursor(ax,hover=2)
+        # crs.connect("add", lambda sel: sel.annotation.set_text(f'Point {sel.target[0]:.4f},{sel.target[1]:.4f}'))
+        
+        cursor1 = mplcursors.cursor(ax,multiple=True)
+        cursor1.connect("add", lambda sel: sel.annotation.draggable(True))
+        
+        cursor2 = mplcursors.cursor(ax,hover=mplcursors.HoverMode.Transient)
+        cursor2.connect("add", lambda sel: sel.annotation.set_backgroundcolor('pink'))
+        
     handles, labels = axs[0].get_legend_handles_labels()
     leg = fig.legend(handles, labels, loc='lower right', ncol=3, draggable=True)
-    
-    # Map legend handles to original artists across all axes
-    lined = {}
-    for leghandle, label in zip(leg.legend_handles, labels):
-        sample_id = label.split(".")
+
+    # Map legend handles to original line artists across all axes
+    legend_lines = {}
+    for leghandle, leglabel in zip(leg.legend_handles, labels):
+        sample_id = leglabel.split(".")
         leghandle.set_picker(5)  # Works for both Line2D and Patch objects
-        lined[leghandle] = {
+        legend_lines[leghandle] = {
             "art":[],
             "group_id":sample_id[0],
-            "label":label
+            "leglabel":leglabel
             }
         for ax in axs:
             # Check lines
             for line in ax.get_lines():
-                if line.get_label() == label:
-                    lined[leghandle]["art"].append(line)
+                if line.get_label() == leglabel:
+                    legend_lines[leghandle]["art"].append(line)
             # Check patches (e.g., bar plots)
             for patch in ax.patches:
-                if patch.get_label() == label:
-                    lined[leghandle]["art"].append(patch)
+                if patch.get_label() == leglabel:
+                    legend_lines[leghandle]["art"].append(patch)
             # Check collections (e.g., fill_between creates PolyCollection)
             for coll in ax.collections:
-                if coll.get_label() == label:
-                    lined[leghandle]["art"].append(coll)
+                if coll.get_label() == leglabel:
+                    legend_lines[leghandle]["art"].append(coll)
 
-    
     def on_pick(event):
-        legline = event.artist
-        if legline in lined:
-            label = lined[legline]["label"]
-            group_id = lined[legline]["group_id"]
-            origlines = lined[legline]["art"]
+        line = event.artist
+        if line in legend_lines:
+            leglabel = legend_lines[line]["leglabel"]
+            group_id = legend_lines[line]["group_id"]
+            origlines = legend_lines[line]["art"]
             vis = not origlines[0].get_visible() if origlines else True
-            if "median" not in label:
-                # hide/show individual plots
-                for origline in origlines:
-                    origline.set_visible(vis)
-                legline.set_alpha(1.0 if vis else 0)
-                fig.canvas.draw()
-            else:
+            if "median" in leglabel:
                 #hide/show all items for that variations if pressed mean or CI
-                for (leghandle,leghandle_dict) in lined.items():
+                for (leghandle,leghandle_dict) in legend_lines.items():
                     if leghandle_dict["group_id"] == group_id:
                         origlines = leghandle_dict["art"]
                         for origline in origlines:
                             origline.set_visible(vis)
                         leghandle.set_alpha(1.0 if vis else 0)
-                fig.canvas.draw()
+            else:
+                # hide/show individual plots
+                for origline in origlines:
+                    origline.set_visible(vis)
+                line.set_alpha(1.0 if vis else 0)
+                
+        fig.canvas.draw()
     fig.canvas.mpl_connect('pick_event', on_pick)
         
     def on_click(event):
         # Right-click (button 3) to hide all
-        if event.button == 3:
-            for leghandle, origlines in lined.items():
+        if event.button == 3 and event.inaxes is None:
+            for leghandle, origlines in legend_lines.items():
                 for origline in origlines["art"]:
                     origline.set_visible(False)
                 leghandle.set_alpha(0)
-            fig.canvas.draw()
+        fig.canvas.draw()
     fig.canvas.mpl_connect('button_press_event', on_click)
     
     def on_resize(event):
@@ -322,6 +296,43 @@ def interactive_plot(fig, axs):
         fig.canvas.draw()
     fig.canvas.mpl_connect('resize_event', on_resize)
     return leg
+""" plot confidence interval with mean and std for n-lists list (each element in the list is a list of  2d arrays)"""
+def plot_stats(x:np.ndarray, data_list:list, fig=None,axs=None,labels:list=[],legend=True,relimit=False,dist="gaussian",split=4,datatype="q"):
+    if "rad" in datatype:
+        temp = [np.rad2deg(data) for data in data_list]
+        data_list = temp
+    if relimit:
+        temp_arr = np.array(data_list)
+        limits = [np.min(temp_arr),np.max(temp_arr)]
+        for i, ax in enumerate(axs):
+            axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
+
+    colors = get_n_colors(len(data_list),split=1)
+    for data,color,label in zip(data_list,colors,labels):
+        if dist == "gaussian":
+            
+            mean,median,max,min,_,_ = compute_central_tendency(data)
+            
+            for i, ax in enumerate(axs):
+                # plot median
+                ax.plot(x, median[:, i], ls=':',color=color, label=f"{label}.median", alpha=1, linewidth=1)
+                # Plot min max bound
+                ax.fill_between(x, min[:, i], max[:, i], 
+                                alpha=0.6, color=color, label=f'{label}.Bound')
+        else:
+            print("iqr")
+            Q1 = np.percentile(np.array(data), 25,axis=0)  # 25th percentile
+            Q2 = np.percentile(np.array(data), 50,axis=0)  # Median (50th percentile)
+            Q3 = np.percentile(np.array(data), 75,axis=0)  # 75th percentile
+
+            for i, ax in enumerate(axs):
+                ax.plot(x, Q2[:, i], ls='-',color=color, label=f"{label}.mean", alpha=0.7, linewidth=3)
+                # Plot 95% CI band
+                ax.fill_between(x, Q1[:, i], Q3[:, i], 
+                                alpha=0.3, color=color, label=f'{label}.CI95')
+    if legend:
+        handles, labels = axs[0].get_legend_handles_labels()
+        fig.legend(handles, labels,loc='lower right', ncol=3, draggable=True)
 def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_type="tau",fig_label="Train",plot=False,stats=True):
     # isolate each variation
     unique_var_id = []
@@ -335,7 +346,7 @@ def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_t
     
     # plot gt's mean and ci for each var
     if plot:
-        fig,ax = compare_multi_dim_data(
+        fig,ax = plot_multi_dim(
             x_list=time_list,
             data_list=data_list,
             dim=data_list[0].shape[1],
@@ -360,8 +371,8 @@ def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_t
             )
         interactive_plot(fig,ax)
     return data_list_per_var,unique_var_id
-""" plot the therapist variation spread"""
-def plot_spread(x_list:list,data_list:list,
+""" plot each axis as 1 source for spread"""
+def plot_multi_source_spread(x_list:list,data_list:list,
                            dim:int,labels:list,xtype:str,datatype:str,
                            split=4,shuffle=False,
                            sharex:bool=True,semilogx:bool=False,legend:bool=True,
@@ -413,11 +424,7 @@ def plot_spread(x_list:list,data_list:list,
                     else:
                         line, = axs[i*6+j].plot(x_rep, data_rep[:, dim], ls='-',color=colors[dim], alpha=alpha, linewidth=linewidth,picker=5)
                     line.line_id = f"{labels[dim]}.sub{i+11}.Var{j+1}.Rep{k+1}"
-    
-    # # plot stats
-    # if show_stats:
-    #     plot_stats(x_list[0],[data_list], fig=fig,axs=axs,labels=["data"],legend=False,dist="gaussian")
-    
+       
     fig.tight_layout(rect=[0.01, 0, 0.96, 0.99]) 
     return fig,axs
 def interactive_spread(fig, axs):
@@ -427,11 +434,21 @@ def interactive_spread(fig, axs):
             markerscale=1.5,
             scatterpoints=1)
     
+    for j,ax in enumerate(axs):
+        # crs = mplcursors.cursor(ax,hover=2)
+        # crs.connect("add", lambda sel: sel.annotation.set_text(f'Point {sel.target[0]:.4f},{sel.target[1]:.4f}'))
+        
+        cursor1 = mplcursors.cursor(ax,multiple=True)
+        cursor1.connect("add", lambda sel: sel.annotation.draggable(True))
+        
+        cursor2 = mplcursors.cursor(ax,hover=mplcursors.HoverMode.Transient)
+        cursor2.connect("add", lambda sel: sel.annotation.set_backgroundcolor('pink'))
+    
     # Map legend handles to original artists across all axes
-    lined = {}
+    legend_lines = {}
     for leghandle, label in zip(leg.legend_handles, labels):
         leghandle.set_picker(5)  # Works for both Line2D and Patch objects
-        lined[leghandle] = {
+        legend_lines[leghandle] = {
             "art":[],
             "label":label
             }
@@ -440,22 +457,22 @@ def interactive_spread(fig, axs):
             for line in ax.get_lines():
                 line_id = line.line_id.split(".")
                 if line_id[0] == label:
-                    lined[leghandle]["art"].append(line)
+                    legend_lines[leghandle]["art"].append(line)
             # # Check patches (e.g., bar plots)
             # for patch in ax.patches:
             #     if patch.get_label() == label:
-            #         lined[leghandle]["art"].append(patch)
+            #         legend_lines[leghandle]["art"].append(patch)
             # # Check collections (e.g., fill_between creates PolyCollection)
             # for coll in ax.collections:
             #     if coll.get_label() == label:
-            #         lined[leghandle]["art"].append(coll)
+            #         legend_lines[leghandle]["art"].append(coll)
 
     
     def on_pick(event):
         legline = event.artist
-        if legline in lined:
-            label = lined[legline]["label"]
-            origlines = lined[legline]["art"]
+        if legline in legend_lines:
+            label = legend_lines[legline]["label"]
+            origlines = legend_lines[legline]["art"]
             
             vis = not origlines[0].get_visible() if origlines else True
             all_y = []
@@ -472,15 +489,6 @@ def interactive_spread(fig, axs):
                     ax.set_ylim(limits[0]-0.3*abs(limits[0]),limits[1]+0.3*abs(limits[1]))
                 legline.set_alpha(1.0 if vis else 0.2)
                 fig.canvas.draw()
-            # else:
-            #     #hide/show all items for that variations if pressed mean or CI
-            #     for (leghandle,leghandle_dict) in lined.items():
-            #         if leghandle_dict["group_id"] == group_id:
-            #             origlines = leghandle_dict["art"]
-            #             for origline in origlines:
-            #                 origline.set_visible(vis)
-            #             leghandle.set_alpha(1.0 if vis else 0)
-            #     fig.canvas.draw()
         elif isinstance(legline, Line2D) and legline.get_visible():
             print(legline.line_id)
     fig.canvas.mpl_connect('pick_event', on_pick)
@@ -488,7 +496,7 @@ def interactive_spread(fig, axs):
     def on_click(event):
         # Right-click (button 3) to hide all
         if event.button == 3:
-            for leghandle, origlines in lined.items():
+            for leghandle, origlines in legend_lines.items():
                 for origline in origlines["art"]:
                     origline.set_visible(False)
                 leghandle.set_alpha(0.2)
@@ -500,57 +508,9 @@ def interactive_spread(fig, axs):
         fig.canvas.draw()
     fig.canvas.mpl_connect('resize_event', on_resize)
     return leg
+#================2D DATA VISUALIZATION END===========================
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# 3D plotting
-"""plot 3d traj function"""
-def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None,label="3D Traj"):
-    n_colors = len(traj_list)
-    colors = get_n_colors(n_colors)
-
-    if fig is None or ax is None:
-        fig, ax = plt.subplots(figsize=(15, 5), subplot_kw={'projection': '3d'},num=label,tight_layout=True)
-        
-        ax.set_xlim([-0.9, 0.9])
-        ax.set_ylim([-0.9, 0.9])
-        ax.set_zlim([-0.2, 1.6])
-        ax.set_xlabel('X (m)')
-        ax.set_ylabel('Y (m)')
-        ax.set_zlabel('Z (m)')
-        ax.set_title('3D Trajectory')
-
-    for traj,label,color in zip(traj_list,label_list,colors):
-        ax.plot(traj[:, 0], 
-            traj[:, 1], 
-            traj[:, 2], 
-            label=label, alpha=0.6, linewidth=1, color=color)
-    ax.legend()
-    plt.tight_layout()
-    if fig is None or ax is None:
-        return fig,ax
-    else:
-        return fig,ax
+#================3D DATA VISUALIZATION===============================
 """ create a custom 3d figure with scroll zoom and easier mouse rotations"""
 def create_custom_3d_fig(num="Hand Traj"):
     # custom 3d fig with better mouse rotation and scroll wheel zoom
@@ -597,7 +557,7 @@ def create_custom_3d_fig(num="Hand Traj"):
     
     mpl.rcParams['axes3d.mouserotationstyle'] = "azel"
     return fig,ax
-"""make axis grids eqial size"""
+"""make axis grids equal size based on available limits"""
 def equal_axis_grid(ax):
     # Make ranges equal
     x0, x1 = ax.get_xlim3d()
@@ -648,64 +608,36 @@ def plot_3d_submovements(traj,sbmvmt_indices,skeleton):
     equal_axis_grid(ax)
 
     return ax,fig
+"""plot multiple 3d traj function"""
+def plot_3d_trajectory(traj_list:list,label_list:list,fig=None,ax=None,label="3D Traj"):
+    n_colors = len(traj_list)
+    colors = get_n_colors(n_colors)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# stats plotting
-""" plot violin plots"""
-def remove_outliers_iqr(data, multiplier=1.5):
-    """
-    Remove outliers using the IQR (Interquartile Range) method.
-    
-    Parameters:
-    -----------
-    data : array-like
-        Input data
-    multiplier : float
-        IQR multiplier for outlier detection. Default is 1.5 (standard).
-        - 1.5: Standard (removes extreme outliers)
-        - 3.0: Conservative (removes only very extreme outliers)
+    if fig is None or ax is None:
+        fig, ax = plt.subplots(figsize=(15, 5), subplot_kw={'projection': '3d'},num=label,tight_layout=True)
         
-    Returns:
-    --------
-    cleaned_data : array
-        Data with outliers removed
-    outliers : array
-        The outlier values that were removed
-    mask : boolean array
-        Mask indicating which points are NOT outliers
-    """
-    data = np.array(data)
-    
-    q1 = np.percentile(data, 25)
-    q3 = np.percentile(data, 75)
-    iqr = q3 - q1
-    
-    lower_bound = q1 - multiplier * iqr
-    upper_bound = q3 + multiplier * iqr
-    
-    mask = (data >= lower_bound) & (data <= upper_bound)
-    cleaned_data = data[mask]
-    outliers = data[~mask]
-    
-    return cleaned_data, outliers, mask
+        ax.set_xlim([-0.9, 0.9])
+        ax.set_ylim([-0.9, 0.9])
+        ax.set_zlim([-0.2, 1.6])
+        ax.set_xlabel('X (m)')
+        ax.set_ylabel('Y (m)')
+        ax.set_zlabel('Z (m)')
+        ax.set_title('3D Trajectory')
+
+    for traj,label,color in zip(traj_list,label_list,colors):
+        ax.plot(traj[:, 0], 
+            traj[:, 1], 
+            traj[:, 2], 
+            label=label, alpha=0.6, linewidth=1, color=color)
+    ax.legend()
+    plt.tight_layout()
+    if fig is None or ax is None:
+        return fig,ax
+    else:
+        return fig,ax
+#================3D DATA VISUALIZATION END===========================
+
+#================STATS VISUALIZATION=================================
 def plot_violins(
     data_list,
     axis_num,
@@ -715,12 +647,12 @@ def plot_violins(
     ylabel="Values",
     cut=2,
     bw_method='scott',
-    show_mean=True,
-    show_median=True,
+    show_central_tendency=True,
     show_whiskers=True,
-    show_points=True,
+    show_points=False,
     violin_width=0.4,
-    prev_fig=None,prev_axs=None
+    prev_fig=None,prev_axs=None,
+    remove_outlier=True,
 ):
     """
     Create smooth violin plot with matplotlib using manual KDE and extended tails.
@@ -769,8 +701,8 @@ def plot_violins(
         fig.suptitle(title, fontsize=14, fontweight='bold')
         axs = []
         for i in range(axis_num):
-            if axis_num >= 3:
-                axs.append(fig.add_subplot(int(np.ceil(axis_num/3)),3,i+1))
+            if axis_num >= 4:
+                axs.append(fig.add_subplot(int(np.ceil(axis_num/4)),4,i+1))
             else:
                 axs.append(fig.add_subplot(1,axis_num,i+1))
     else:
@@ -785,7 +717,11 @@ def plot_violins(
     for set_data in data_list:
         cleaned_data_list = []
         for data in set_data:
-            cleaned,_,_ = remove_outliers_iqr(data)
+            if remove_outlier:
+                cleaned,_,_ = remove_outliers_iqr(data)
+            else:
+                cleaned = data
+            cleaned = cleaned.flatten()
             cleaned_data_list.append(cleaned)
         cleaned_set_data.append(cleaned_data_list)
     # standardize the scale for every axis
@@ -795,7 +731,7 @@ def plot_violins(
     for ax,set_data,ax_title in zip(axs,cleaned_set_data,axis_title):
         # Customize plot
         ax.set_xticks(positions)
-        ax.set_xticklabels(x_labels, rotation=0, ha='center')
+        
         ax.set_title(ax_title, fontsize=12, fontweight='bold')
         ax.set_ylabel(ylabel, fontsize=12, fontweight='bold')
         
@@ -823,6 +759,7 @@ def plot_violins(
                    zorder=7)
         
         # Draw each violin with manual KDE
+        cur_x_labels = []
         for i, (pos, data, color) in enumerate(zip(positions, set_data, colors)):
             # Calculate KDE
             kde = stats.gaussian_kde(data, bw_method=bw_method)
@@ -835,14 +772,15 @@ def plot_violins(
             
             # Create extended evaluation points (smooth tails like seaborn)
             extend = cut * bandwidth
-            y_eval = np.linspace(data_min - extend, data_max + extend, 200)
+            y_eval = np.linspace(data_min - extend, data_max + extend, 1000)
             
             # Evaluate KDE density
             density = kde(y_eval)
+            max_density = np.argmax(density)
             
-            # Normalize and scale density for width
+            # # Normalize and scale density for width
             density = density / density.max() * violin_width
-            
+                        
             # Plot violin (mirrored density for symmetric appearance)
             ax.fill_betweenx(
                 y_eval, 
@@ -856,13 +794,18 @@ def plot_violins(
             )
             
             # Add median line
-            if show_median:
+            if show_central_tendency:
                 median = np.median(data)
                 ax.plot([pos - 0.04, pos + 0.04], 
                        [median, median], 
                        color='orange', 
                        linewidth=2, 
                        zorder=5)
+                ax.scatter(pos, np.mean(data) , color='red', s=40, zorder=5, 
+                      marker='D', edgecolors='black', linewidths=1.5)
+                ax.scatter(pos, y_eval[max_density] , color='green', s=40, zorder=5, 
+                      marker='o', edgecolors='black', linewidths=1.5)
+                cur_x_labels.append(f"{x_labels[i]}\n"+fr"($\mu$ = {np.mean(data):.4f})"+f"\n(mode = {y_eval[max_density]:.4f})\n(median = {median:.4f})")
         
             # Add points arranged as horizontal histogram
             if show_points:
@@ -942,10 +885,12 @@ def plot_violins(
                 )
                 ax.add_patch(quartile_box)
     
-            # Add mean points
-            if show_mean:
-                ax.scatter(pos, np.mean(data) , color='red', s=25, zorder=5, 
-                      marker='D', edgecolors='black', linewidths=1.5)
+
+        if show_central_tendency:
+            ax.set_xticklabels(cur_x_labels, rotation=0, ha='center')
+        else:
+            ax.set_xticklabels(x_labels, rotation=0, ha='center')
+
     
     # Create legend
     legend_elements = []
@@ -958,16 +903,19 @@ def plot_violins(
     legend_elements.append(
         Line2D([0], [0], linestyle=':',linewidth=2, color='black', label='Perfomance Boundary')
     )
-    if show_mean:
+    if show_central_tendency:
         legend_elements.append(
            Line2D([0], [0], marker='D', color='w', 
                              markerfacecolor='red', markersize=8,
                              markeredgecolor='black', label='Mean'))
-    if show_whiskers:
+        legend_elements.append(
+           Line2D([0], [0], marker='o', color='w', 
+                             markerfacecolor='green', markersize=8,
+                             markeredgecolor='black', label='Mode'))
         legend_elements.append(
             Line2D([0], [0], linestyle='-',linewidth=2, color='orange', label='Median')
         )
-    fig.legend(handles=legend_elements,loc='upper right', ncol=3, draggable=True)
+    fig.legend(handles=legend_elements,loc='upper right', ncol=4, draggable=True)
     
     # Tight layout
     plt.tight_layout()
@@ -977,5 +925,6 @@ def plot_violins(
         fig.canvas.draw()
     fig.canvas.mpl_connect('resize_event', on_resize)
     
-    fig.savefig(f'plots/{title}.png')
+    # fig.savefig(f'plots/{title}.png')
     return fig, ax
+#================STATS VISUALIZATION END=============================

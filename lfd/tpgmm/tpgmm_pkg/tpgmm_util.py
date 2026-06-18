@@ -2,6 +2,7 @@ import sys,os
 sys.path.append(os.path.join(os.path.dirname(__file__)))
 
 import numpy as np
+realmin  = np.finfo(np.float64).tiny
 from tpgmm_objects import Sample,TaskParams
 from matplotlib.patches import Polygon
 import pickle
@@ -16,11 +17,12 @@ def get_optim_nbGauss(data):
     from sklearn.preprocessing import MinMaxScaler
 
     # Standardize for proper model selection
-    q_data_unscaled,qdot_data_unscaled,tau_data_unscaled = data[:,0:10],data[:,10:20],data[:,20:-1]
+    step = 1
+    q_data_unscaled,qdot_data_unscaled,tau_data_unscaled = data[::step,0:10],data[::step,10:20],data[::step,20:-1]
 
     # Normalize q_data into unit vectors for each row
-    q_data = q_data_unscaled / np.linalg.norm(q_data_unscaled, axis=1, keepdims=True)
-    qdot_data = qdot_data_unscaled / np.linalg.norm(qdot_data_unscaled, axis=1, keepdims=True)
+    q_data = q_data_unscaled / (np.linalg.norm(q_data_unscaled, axis=1, keepdims=True)+realmin)
+    qdot_data = qdot_data_unscaled / (np.linalg.norm(qdot_data_unscaled, axis=1, keepdims=True)+realmin)
     tau_data = tau_data_unscaled / np.linalg.norm(tau_data_unscaled, axis=1, keepdims=True)
     data_scaled = np.hstack((q_data,qdot_data,tau_data))
     # data_scaled = np.hstack((q_data_unscaled,qdot_data_unscaled,tau_data_unscaled))
@@ -164,14 +166,16 @@ def plotPegs_n_Traj(num_of_frames,sampleParam,expected_data,ax):
 """
 save results for future comparison
 """
-def save_results(subject_id,time_list,recon_list,comparators_per_var,id_list,filename):
+def save_results(patient_id,subject_id,tpgmm,time_list,recon_list,comparators_per_var,id_list,filename):
     compile_data = []
     # save the results as follows (time,GT,recon,comparator,sample id)
     for time,recon,comparator,sample_id in zip(time_list,recon_list,comparators_per_var,id_list):
         # sample_id = sample_id.split(".")
         compile_data.append(
             {
+                "patient_id":patient_id,
                 "subject_id":subject_id,
+                "tpgmm_param":tpgmm.num_of_gauss,
                 "var-id-case":sample_id,
                 # "time":time,
                 "recon":recon,

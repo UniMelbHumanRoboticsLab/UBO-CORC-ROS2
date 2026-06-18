@@ -11,7 +11,7 @@ np.set_printoptions(
 sys.path.append(os.path.join(os.path.dirname(__file__)))
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from data_visual.plot_pkg import plot_spread,interactive_spread
+from data_visual.plot_pkg import plot_multi_source_spread,interactive_spread
 
 for p in range(1,4):
     if p == 1:
@@ -80,7 +80,7 @@ for p in range(1,4):
         tau_list_all.append(tau_list_sub)
 
     
-    fig,axs = plot_spread(x_list=time_list_all,data_list=tau_list_all,dim=6*14,labels=tau,xtype="t",datatype="tau",split=4,sharex=False,legend=True,fig_label=f"p{p}")
+    fig,axs = plot_multi_source_spread(x_list=time_list_all,data_list=tau_list_all,dim=6*14,labels=tau,xtype="t",datatype="tau",split=4,sharex=False,legend=True,fig_label=f"p{p}")
     interactive_spread(fig,axs)
     plt.show()
 

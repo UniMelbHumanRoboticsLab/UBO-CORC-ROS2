@@ -151,7 +151,7 @@ def get_processed_data(data_path,degree_flag=False):
 
     return time_data,indices,joint_kinematics,joint_torques
 def compile_train_val_test_data(session_data,task_path,combi,sample,degree_flag=False):
-	train_test_split = pd.read_csv(f'{task_path}/splits/{combi}_train_test.csv')["split"].values
+	train_test_split = pd.read_csv(f'{task_path}/splits/{combi}_train_test.csv')[["split"]].values
 	train_val_df = pd.read_csv(f'{task_path}/splits/{combi}_train_val_{sample}.csv')
 	train_val_split = dict(zip(train_val_df["repetition"], train_val_df["split"]))
 
@@ -172,7 +172,7 @@ def compile_train_val_test_data(session_data,task_path,combi,sample,degree_flag=
 			"tp":tp
 			}
 
-			if case == "train":
+			if case[0] == "train":
 				# check if var_rep is train or val
 				split = train_val_split[f"{var}/processed/UBORecord{rep}Log.csv"]
 				var_rep["id"] = f"{var}.{rep}.{split}"
@@ -180,9 +180,9 @@ def compile_train_val_test_data(session_data,task_path,combi,sample,degree_flag=
 						train_list.append(var_rep)
 				elif split == "val":
 						val_list.append(var_rep)
-			elif case == "test":
+			elif case[0] == "test":
 				# test list
-				var_rep["id"] = f"{var}.{rep}.{case}"
+				var_rep["id"] = f"{var}.{rep}.{case[0]}"
 				test_list.append(var_rep)
 	return train_list,val_list,test_list
 
