@@ -24,14 +24,14 @@ GREEN = '\033[92m'
 RED = '\033[91m'
 RESET = '\033[0m'
 
-for p in range(1,2):
+for p in range(1,4):
     total_time = 0
     if p == 1:
         sm_num = 2
     else:
         sm_num=4
         
-    for sub in range(11,12):
+    for sub in range(11,25):
         session_data = {
             "exp_id":"exp1",
             "patient_id":f"p{p}",
@@ -42,8 +42,8 @@ for p in range(1,2):
         }
         subject_path = os.path.join(os.path.dirname(__file__), '../..',f'logs/pycorc_recordings/{session_data["exp_id"]}/{session_data["patient_id"]}/{session_data["subject_id"]}')
         
-        for combi_num in range(2):
-            for sample_num in range(2):
+        for combi_num in range(6):
+            for sample_num in range(4):
                 print(f"\n===== {session_data['patient_id']}-{session_data['subject_id']}-{combi_num}-{sample_num} =================")
                 train_list,val_list,test_list = compile_train_val_test_data(session_data,subject_path,combi_num,sample_num,False)
                 all_data = []
