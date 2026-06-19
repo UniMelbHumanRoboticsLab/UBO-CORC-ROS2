@@ -47,7 +47,7 @@ def get_optim_nbGauss(data):
         grid_search = GridSearchCV(
             GMM_sk(init_params='k-means++',max_iter=200), 
             param_grid=param_grid, scoring=gmm_bic_score,
-            verbose=3,n_jobs=3,
+            verbose=3,n_jobs=-1,
             cv = KFold(n_splits=5, shuffle=True)
             )
         grid_search.fit(data_scaled)

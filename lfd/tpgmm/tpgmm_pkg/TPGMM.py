@@ -22,6 +22,8 @@ class TPGMM:
     def __init__(self, num_of_gauss, num_of_frames, num_of_dim,priors,kP,kV,diagRegFact,version="fast",init_type='kmeans++'):
         self.model_id = ""
         self.bic = ""
+        self.bic_time = 0
+        self.training_time = 0
         self.training_status = 0
         self.num_of_gauss = num_of_gauss
         self.num_of_frames = num_of_frames

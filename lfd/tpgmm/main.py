@@ -16,7 +16,7 @@ from data_process.file_util_pkg import create_dir,compile_train_val_test_data
 from data_analyse.stats_pkg import compute_central_tendency
 import matplotlib.pyplot as plt
 
-plt_results = True
+plt_results = False
 retrain = True
 deploy = True
 
@@ -25,6 +25,7 @@ RED = '\033[91m'
 RESET = '\033[0m'
 
 for p in range(1,2):
+    total_time = 0
     if p == 1:
         sm_num = 2
     else:
@@ -41,8 +42,8 @@ for p in range(1,2):
         }
         subject_path = os.path.join(os.path.dirname(__file__), '../..',f'logs/pycorc_recordings/{session_data["exp_id"]}/{session_data["patient_id"]}/{session_data["subject_id"]}')
         
-        for combi_num in range(6):
-            for sample_num in range(4):
+        for combi_num in range(2):
+            for sample_num in range(2):
                 print(f"\n===== {session_data['patient_id']}-{session_data['subject_id']}-{combi_num}-{sample_num} =================")
                 train_list,val_list,test_list = compile_train_val_test_data(session_data,subject_path,combi_num,sample_num,False)
                 all_data = []
@@ -79,6 +80,9 @@ for p in range(1,2):
                         print(f"{color}Training Status: {tpgmm.training_status}{RESET}")
                         print(f"Number of Gaussians: {num_of_gauss}")
                         print(f"Converged Likelihood: {LL}")
+                        print(f"BIC Elapsed \t\t= {tpgmm.bic_time:.4f}s")
+                        print(f"Training: Elapsed \t= {tpgmm.training_time:.4f}s")
+                        total_time += tpgmm.training_time+tpgmm.bic_time
                 else:
                     fail = True
                     retry = 0
@@ -88,7 +92,9 @@ for p in range(1,2):
                         hi = train_tp_data.transpose(0, 2, 1).reshape(-1, train_tp_data.shape[1])
                         num_of_gauss,bic_df = get_optim_nbGauss(all_data)
                         end = times.perf_counter()
-                        print(f"BIC Search:Elapsed \t= {(end - start):.4f}s\n")
+                        bic_time = (end - start)
+                        total_time += (end - start)
+                        
                         start = times.perf_counter()
                         tpgmm = TPGMM(num_of_gauss,num_of_frames,num_of_dims,priors=np.ones((num_of_gauss,)),kP=0,kV=0,diagRegFact=1e-8,version="fast")
                         tpgmm.model_id = f'{session_data["exp_id"]}-{session_data["patient_id"]}-{session_data["subject_id"]}-tpgmm_{combi_num}_{sample_num}'
@@ -96,7 +102,12 @@ for p in range(1,2):
                         tpgmm.init_gmm(train_tp_data)
                         LL,fail = tpgmm.fit_em(nbMinSteps=2,nbMaxSteps=100,maxDiffLL=1e-5,updateComp=np.ones((3,1)),tp_data=train_tp_data)
                         end = times.perf_counter()
-                        print(f"Training Success?: {not fail} \t Fast Training:Elapsed \t= {(end - start):.4f}s")
+                        total_time += (end - start)
+                        print(f"Training Success?: {not fail}")
+                        print(f"BIC Search:Elapsed \t= {(bic_time):.4f}s")
+                        print(f"Fast Training:Elapsed \t= {(end - start):.4f}s")
+                        tpgmm.training_time = (end - start)
+                        tpgmm.bic_time = bic_time
                         retry += 1
                     if fail:
                         tpgmm.training_status = "Fail"
@@ -181,6 +192,7 @@ for p in range(1,2):
                     # save the results
                     save_results(session_data["patient_id"],session_data["subject_id"],tpgmm,time_list,recon_list,train_comparators_per_var,id_list,f"{subject_path}/repro/val_{combi_num}_{sample_num}")
                     end = times.perf_counter()
+                    total_time += (end - start)
                     print(f"Fast Deploy:Elapsed \t= {(end - start):.4f}s")
                     
                     """plot validation recon & gt with the training data's mean and CI"""
@@ -263,6 +275,7 @@ for p in range(1,2):
                     """ END OF PIPELINE"""
                     end = times.perf_counter()
                     print(f"Fast Deploy:Elapsed \t= {(end - start):.4f}s")
+                    total_time += (end - start)
                     
                     """plot test gt's rep, mean and ci within each variation and their corresponding reconstructions"""
                     if plt_results:
@@ -303,5 +316,4 @@ for p in range(1,2):
                         )
                         interactive_plot(stats_fig,stats_ax)
                         plt.show()
-                
-
+    print(f"\np{p} Total Train:Elapsed \t= {(total_time):.4f}s")
