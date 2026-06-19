@@ -18,8 +18,8 @@ from pyCORC.pycorc_io.xsens.ub_pckg.ub import ub
 from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
 import FreeSimpleGUI as sg
 
-p_start = 2
-sub_start  = 14
+p_start = 1
+sub_start  = 11
 for p in range(p_start,4):
     if p == 1:
         sm_num = 2
@@ -103,6 +103,7 @@ for p in range(p_start,4):
                     #     print(f"Already removed {subject_path}/{var}/processed/index")    
                     print(f'{subject_path}/{var}/processed/UBORecord{rep}Log.csv Processed')
                     full_df = pd.read_csv(f'{subject_path}/{var}/processed/UBORecord{rep}Log.csv')
+                    print(f"Num of samples: {full_df.values.shape[0]}")
                     time_data_norm = full_df["norm_time"].values
                     q_traj_rad = full_df[q].values
                     qdot_traj_rad = full_df[qdot].values
@@ -112,9 +113,7 @@ for p in range(p_start,4):
                     if n == 0:
                         reference_interaction = np.hstack((q_traj_rad,qdot_traj_rad,tau_total))
                         reference_index = indices_traj
-                    if var == session_data["variants"][0] and n == 0:
-                        time_data       = time_data_norm
-                        num_samples     = time_data.shape[0]
+                        ref_time_data_norm = time_data_norm
                 else:
                     data_path = f'{subject_path}/{var}/raw/UBORecord{rep}Log.csv'
                     print("processing ",data_path)
@@ -196,28 +195,26 @@ for p in range(p_start,4):
                         taus_traj[rft_key]["filtered-rescaled"] = taus_traj[rft_key]["filtered-rescaled"][start_end_indices[0]:start_end_indices[-1],:]
                     
                     """ Time Normalization """
-                    # use first var first demo as the reference for overall time alignment
-                    if var == session_data["variants"][0] and n == 0:
-                        time_data_norm  = time_data / time_data[-1]
-                        time_data       = time_data_norm
-                        num_samples     = time_data.shape[0]
+                    # use first demo as the reference for overall time alignment
+                    # if var == session_data["variants"][0] and n == 0:
+                    if n == 0:
+                        ref_time_data_norm  = time_data / time_data[-1]
+                        ref_time_data = time_data
+                        time_data_norm       = ref_time_data_norm
                     else:
-                        time_data       = time_data / time_data[-1]
-                        time_data_norm  = np.linspace(0, 1, num_samples)
-                        actual_time_data = np.linspace(actual_time_data[0], actual_time_data[-1], num_samples)
+                        time_data_norm       = time_data / time_data[-1]
             
                     # rescale all data to the reference demo time
                     plot_results = False # check if time normalization fucks up the data
-                    corc_data       = rescale(time_data, corc_data,     time_data_norm, datatype=f"wrenches_norm_{var}-Rep{rep}",   plot_results=plot_results)
-                    q_traj          = rescale(time_data, q_traj,        time_data_norm, datatype=f"q_norm_{var}-Rep{rep}",          plot_results=plot_results)
-                    qdot_traj       = rescale(time_data, qdot_traj,     time_data_norm, datatype=f"qdot_norm_{var}-Rep{rep}",       plot_results=plot_results)
+                    # corc_data       = rescale(time_data_norm, corc_data,     ref_time_data_norm, datatype=f"wrenches_norm_{var}-Rep{rep}",   plot_results=plot_results)
+                    # q_traj          = rescale(time_data_norm, q_traj,        ref_time_data_norm, datatype=f"q_norm_{var}-Rep{rep}",          plot_results=plot_results)
+                    # qdot_traj       = rescale(time_data_norm, qdot_traj,     ref_time_data_norm, datatype=f"qdot_norm_{var}-Rep{rep}",       plot_results=plot_results)          
+                    # hand_pos_traj   = rescale(time_data_norm, hand_pos_traj, ref_time_data_norm, datatype=f"hand_pos_norm_{var}-Rep{rep}",   plot_results=plot_results)
+                    # hand_speed      = rescale(time_data_norm, hand_speed,    ref_time_data_norm, datatype=f"hand_speed_norm_{var}-Rep{rep}", plot_results=plot_results)
+                    # for rft_key in rft_keys+["total"]:
+                    #     taus_traj[rft_key]["filtered-rescaled"] = rescale(time_data_norm, taus_traj[rft_key]["filtered-rescaled"], time_data_norm, datatype=f"tau_norm_{rft_key}_{var}-Rep{rep}",    plot_results=plot_results)
                     q_traj_rad      = np.deg2rad(q_traj)
                     qdot_traj_rad   = np.deg2rad(qdot_traj)
-            
-                    hand_pos_traj   = rescale(time_data, hand_pos_traj, time_data_norm, datatype=f"hand_pos_norm_{var}-Rep{rep}",   plot_results=plot_results)
-                    hand_speed      = rescale(time_data, hand_speed,    time_data_norm, datatype=f"hand_speed_norm_{var}-Rep{rep}", plot_results=plot_results)
-                    for rft_key in rft_keys+["total"]:
-                        taus_traj[rft_key]["filtered-rescaled"] = rescale(time_data, taus_traj[rft_key]["filtered-rescaled"], time_data_norm, datatype=f"tau_norm_{rft_key}_{var}-Rep{rep}",    plot_results=plot_results)
                     
                     """ DTW Realignment """
                     # use first demo as the reference for the DTW alignment
@@ -231,7 +228,7 @@ for p in range(p_start,4):
                     paths = align_dtw(reference_interaction[:,0:align_dim],target_interaction[:,0:align_dim])
                     placehold = sg.popup('',location=(1550,300),non_blocking=True)  
                     f1,a1 = plot_multi_dim(
-                            [actual_time_data,actual_time_data,actual_time_data],
+                            [time_data,ref_time_data,ref_time_data],
                             [q_traj_rad,warp_target_to_ref(reference_interaction,q_traj_rad,paths),reference_interaction[:,0:10]],
                             10,
                             ["ori","dtw","ref"],
@@ -242,7 +239,7 @@ for p in range(p_start,4):
                             fig_label=f"joint angle rad {align_dim}",
                             show_stats=False,loc="+2000+800")
                     f2,a2 = plot_multi_dim(
-                            [actual_time_data,actual_time_data,actual_time_data],
+                            [time_data,ref_time_data,ref_time_data],
                             [qdot_traj_rad,warp_target_to_ref(reference_interaction,qdot_traj_rad,paths),reference_interaction[:,10:20]],
                             10,
                             ["ori","dtw","ref"],
@@ -254,7 +251,7 @@ for p in range(p_start,4):
                             show_stats=False,loc="+2900+800",
                             show_zero_cross=True)
                     f3,a3 = plot_multi_dim(
-                            [actual_time_data,actual_time_data,actual_time_data],
+                            [time_data,ref_time_data,ref_time_data],
                             [taus_traj["total"]["filtered-rescaled"],warp_target_to_ref(reference_interaction,taus_traj["total"]["filtered-rescaled"],paths),reference_interaction[:,20:]],
                             10,
                             ["ori","dtw","ref"],
@@ -272,8 +269,8 @@ for p in range(p_start,4):
                     """ Submovement Segment using unaligned movement"""
                     # segment rescaled but not aligned submovements
                     haih = actual_time_data[:np.newaxis]
-                    indices_traj,sbmvmt_indices = segment_sbmvmts(actual_time_data[:np.newaxis],hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt',redo=False,skeleton={"ub":skeleton,"q":q_traj})
-                    placehold.close()
+                    indices_traj,sbmvmt_indices = segment_sbmvmts(actual_time_data[:np.newaxis],hand_pos_traj,hand_speed,session_data["sbmvmt_num"],data_path=f'{subject_path}/{var}/processed/index/UBOIndex{rep}.txt',redo=True,skeleton={"ub":skeleton,"q":q_traj})
+                    # placehold.close()
                     # f3,a3 = plot_multi_dim(
                     #         [actual_time_data,actual_time_data,actual_time_data],
                     #         [indices_traj,warp_target_to_ref(reference_interaction,indices_traj,paths),reference_index],
@@ -319,26 +316,28 @@ for p in range(p_start,4):
                         "task_params": task_params_b
                     }
                     tau_total = taus_traj["total"]["filtered-rescaled"]
-                    full_processed_data = np.hstack([actual_time_data[:,np.newaxis],time_data_norm[:,np.newaxis],indices_traj,q_traj_rad,qdot_traj_rad,tau_total,hand_pos_traj])
+                    t_warped =  warp_target_to_ref(reference_interaction,actual_time_data[:,np.newaxis],paths)
+                    indices_traj = warp_target_to_ref(reference_interaction,indices_traj,paths)
+                    full_processed_data = np.hstack([t_warped,ref_time_data_norm[:,np.newaxis],indices_traj,q_traj_rad,qdot_traj_rad,tau_total,hand_pos_traj])
                     
                     df_column = ["actual_time","norm_time","index"]+q+qdot+tau+["x","y","z"]
                     full_df = pd.DataFrame(full_processed_data,columns=df_column)
                     full_df.to_csv(f'{subject_path}/{var}/processed/UBORecord{rep}Log.csv',index=False)
         
                 # for plotting
-                time_list.append(time_data_norm)
+                time_list.append(ref_time_data_norm)
                 q_traj_list.append(q_traj_rad)
                 qdot_traj_list.append(qdot_traj_rad)
                 tau_traj_list.append(tau_total)
                 hand_3d_traj_list.append(hand_pos_traj)
                 sbmvmt_list.append(indices_traj)  
                 rep_label_list.append(f'{var}.Rep{rep}')
-        if exist:
-            # fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list,label=f"{session_data['subject_id']}_{session_data['patient_id']}")
-            # split_plot_all(session_data["variants"],time_list,q_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="q_rad",fig_label=f"q_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
-            # split_plot_all(session_data["variants"],time_list,sbmvmt_list,rep_label_list,rep_split=session_data["num_rep"],data_type="index",fig_label=f"index data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+        if not exist:
+            fig,ax = plot_3d_trajectory(traj_list=hand_3d_traj_list,label_list=rep_label_list,label=f"{session_data['subject_id']}_{session_data['patient_id']}")
+            split_plot_all(session_data["variants"],time_list,q_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="q_rad",fig_label=f"q_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+            split_plot_all(session_data["variants"],time_list,sbmvmt_list,rep_label_list,rep_split=session_data["num_rep"],data_type="index",fig_label=f"index data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
             split_plot_all(session_data["variants"],time_list,tau_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="tau",fig_label=f"tau data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
-            # split_plot_all(session_data["variants"],time_list,qdot_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="qdot_rad",fig_label=f"qdot_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
+            split_plot_all(session_data["variants"],time_list,qdot_traj_list,rep_label_list,rep_split=session_data["num_rep"],data_type="qdot_rad",fig_label=f"qdot_rad data {session_data['subject_id']}_{session_data['patient_id']}",plot=True)
             plt.show()
             
 # plot_multi_dim(

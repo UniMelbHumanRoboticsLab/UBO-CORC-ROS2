@@ -23,7 +23,6 @@ def lpf(time_array,data,ts=0.01,fc=50,filter_type="low",datatype="trajectory",pl
     db_arr = []
 
     # Define the sos filter
-    
     fs = 1/ts  # Sampling frequency
     nyquist = fs / 2  # Nyquist frequency
     wc = fc / nyquist # Normalize cut-off frequency by Nyquist frequency (fs/2)
@@ -131,19 +130,24 @@ def segment_sbmvmts(time_array,hand_traj,hand_speed,submovement_num,data_path,re
                 indexed_time = np.array(lines[1].split(": ")[1].split(), dtype=float)
             else:
                 p = lines[1].split(": ")[1].split("\n")[0]
+                q = lines[2].split(": ")[1].split("\n")[0]
                 import re
                 indexed_time = np.array([float(x) for x in re.findall(r"\[([^\]]+)\]", p)])
                 if len(indexed_time) == 0:
                     indexed_time = np.array(lines[1].split(": ")[1].split(), dtype=float)
-                p = 0
+                indexed_time_norm = np.array([float(x) for x in re.findall(r"\[([^\]]+)\]", q)])
+                if len(indexed_time_norm) == 0:
+                    indexed_time_norm = np.array(lines[2].split(": ")[1].split(), dtype=float)
             print(f"Saved {segment_type} Indices:", sbmvmt_indices)
             print(f"Saved {segment_type} Times:", indexed_time)
-            
+            if segment_type == "Submovements":
+                print(f"Saved {segment_type} Norm Times:", indexed_time_norm)
+                
             # reindex if given time array is different from previous iteration time array
             new_sbmvmt_indices = closest_indices(time_array, indexed_time)
-            # reuse the first and last one
+            # reuse the first one
             new_sbmvmt_indices[0] = sbmvmt_indices[0]
-            new_sbmvmt_indices[-1] = sbmvmt_indices[-1]
+            # new_sbmvmt_indices[-1] = sbmvmt_indices[-1]
             print(f"New {segment_type} Indices:", new_sbmvmt_indices)
             print(f"New {segment_type} Times:", np.array(time_array[new_sbmvmt_indices],dtype=float))
             

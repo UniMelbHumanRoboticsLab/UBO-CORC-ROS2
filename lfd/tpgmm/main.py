@@ -17,23 +17,22 @@ from data_analyse.stats_pkg import compute_central_tendency
 import matplotlib.pyplot as plt
 
 plt_results = True
-retrain = False
+retrain = True
 deploy = True
-
 
 GREEN = '\033[92m'
 RED = '\033[91m'
 RESET = '\033[0m'
 
-for p in range(3,4):
+for p in range(1,2):
     if p == 1:
         sm_num = 2
     else:
         sm_num=4
         
-    for sub in range(23,25):
+    for sub in range(11,12):
         session_data = {
-            "exp_id":"exp1_trained",
+            "exp_id":"exp1",
             "patient_id":f"p{p}",
             "subject_id":f"sub{sub}",
             "sbmvmt_num":sm_num,
@@ -50,6 +49,7 @@ for p in range(3,4):
                 for train in train_list:
                     all_data.append(train["data"])
                 all_data = np.vstack(all_data)
+                print(f"Number of samples:{all_data.shape[0]}")
         
                 """
                 Transform training and test data
@@ -141,7 +141,7 @@ for p in range(3,4):
                         time_list.insert((i+1)*4-1,val_dict["time"])
                         gt_list.insert((i+1)*4-1,DataOut)
                         id_list.insert((i+1)*4-1,val_dict["id"])
-                    gt_list_per_var,unique_var_id_list = split_plot_all(var_id_list,time_list,gt_list,id_list,rep_split=4,fig_label=f"Train GT {combi_num}-{sample_num}")
+                    time_list_per_var,gt_list_per_var,unique_var_id_list = split_plot_all(var_id_list,time_list,gt_list,id_list,rep_split=4,fig_label=f"Train GT {combi_num}-{sample_num}")
                     
                     # get the mean of training samples for each variation, repeat once for the comparator as there is only 1 validation sample
                     train_comparators_per_var = []
@@ -192,7 +192,7 @@ for p in range(3,4):
                             labels=[f"{i}.GT" for i in id_list],
                             xtype="time",
                             datatype="tau",
-                            fig_label=f"Val Compare {combi_num}-{sample_num}",
+                            fig_label=f"{session_data['exp_id']} Val Compare {combi_num}-{sample_num}",
                             split=1,
                             legend=False,
                         )
@@ -203,14 +203,14 @@ for p in range(3,4):
                             labels=[f"{i}.Recon" for i in id_list],
                             xtype="time",
                             datatype="tau",
-                            fig_label=f"Val Compare {combi_num}-{sample_num}",
+                            fig_label=f"{session_data['exp_id']} Val Compare {combi_num}-{sample_num}",
                             split=1,
                             legend=False,
                             prev_fig=stats_fig,prev_ax=stats_ax,
                             shuffle=True
                         )
                         plot_stats(
-                            time_list[0],
+                            time_list_per_var,
                             gt_list_per_var,
                             fig=stats_fig,
                             axs=stats_ax,
@@ -240,8 +240,8 @@ for p in range(3,4):
                         recon_list.append(expected_data)
                         gt_list.append(DataOut)
                         id_list.append(test_dict["id"])
-                    gt_list_per_var,unique_var_id_list = split_plot_all(var_id_list,time_list,gt_list,id_list,rep_split=4,fig_label=f"Test GT {combi_num}-{sample_num}")
-                    recon_list_per_var,_ = split_plot_all(var_id_list,time_list,recon_list,id_list,rep_split=4,fig_label="Test Recon {combi_num}-{sample_num}")
+                    time_list_per_var,gt_list_per_var,unique_var_id_list = split_plot_all(var_id_list,time_list,gt_list,id_list,rep_split=4,fig_label=f"Test GT {combi_num}-{sample_num}")
+                    _,recon_list_per_var,_ = split_plot_all(var_id_list,time_list,recon_list,id_list,rep_split=4,fig_label="Test Recon {combi_num}-{sample_num}")
                     
                     # get the mean of each test validation, and repeat for 4 repetitions
                     test_comparators_per_var = []
@@ -273,7 +273,7 @@ for p in range(3,4):
                             labels=[f"{x}.Test GT" for x in id_list],
                             xtype="time (s)",
                             datatype="tau",
-                            fig_label=f"Test Compare {combi_num}-{sample_num}",
+                            fig_label=f"{session_data['exp_id']} Test Compare {combi_num}-{sample_num}",
                             split=4,
                             legend=False
                         )
@@ -285,7 +285,7 @@ for p in range(3,4):
                 
                             xtype="time",
                             datatype="tau",
-                            fig_label=f"Test Compare {combi_num}-{sample_num}",
+                            fig_label=f"{session_data['exp_id']} Test Compare {combi_num}-{sample_num}",
                             split=4,
                             legend=False,
                             prev_fig=stats_fig,
@@ -293,7 +293,7 @@ for p in range(3,4):
                             shuffle=True
                         )
                         plot_stats(
-                            time_list[0],
+                            time_list_per_var,
                             gt_list_per_var,
                             fig=stats_fig,
                             axs=stats_ax,

@@ -171,7 +171,7 @@ def plot_multi_dim(x_list:list,data_list:list,
     for j,ax in enumerate(axs):
         # sanity check for zero crossings cuz why not
         if show_zero_cross:
-            plot_velocity_zero_crossings(x_array_i[:, j], data_list[0][:, j], ax)
+            plot_velocity_zero_crossings(x_list[0], data_list[0][:, j], ax)
     
     if legend:
         handles, labels = axs[0].get_legend_handles_labels()
@@ -297,27 +297,36 @@ def interactive_plot(fig, axs):
     fig.canvas.mpl_connect('resize_event', on_resize)
     return leg
 """ plot confidence interval with mean and std for n-lists list (each element in the list is a list of  2d arrays)"""
-def plot_stats(x:np.ndarray, data_list:list, fig=None,axs=None,labels:list=[],legend=True,relimit=False,dist="gaussian",split=4,datatype="q"):
+def plot_stats(time_list:list, data_list:list, fig=None,axs=None,labels:list=[],legend=True,relimit=False,dist="gaussian",split=4,datatype="q"):
     if "rad" in datatype:
         temp = [np.rad2deg(data) for data in data_list]
         data_list = temp
     if relimit:
-        temp_arr = np.array(data_list)
+        temp_arr = np.array(data_list[0])
+        limits = [np.min(temp_arr),np.max(temp_arr)]
+        for data in data_list:
+            temp_arr = np.array(data)
+            cur_min,cur_max = np.min(temp_arr),np.max(temp_arr)
+            if cur_min < limits[0]:
+                limits[0] = cur_min
+            if cur_max > limits[0]:
+                limits[1] = cur_max
         limits = [np.min(temp_arr),np.max(temp_arr)]
         for i, ax in enumerate(axs):
             axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
 
     colors = get_n_colors(len(data_list),split=1)
-    for data,color,label in zip(data_list,colors,labels):
+    for x,data,color,label in zip(time_list,data_list,colors,labels):
+        time = x[0]
         if dist == "gaussian":
             
             mean,median,max,min,_,_ = compute_central_tendency(data)
             
             for i, ax in enumerate(axs):
                 # plot median
-                ax.plot(x, median[:, i], ls=':',color=color, label=f"{label}.median", alpha=1, linewidth=1)
+                ax.plot(time, median[:, i], ls=':',color=color, label=f"{label}.median", alpha=1, linewidth=1)
                 # Plot min max bound
-                ax.fill_between(x, min[:, i], max[:, i], 
+                ax.fill_between(time, min[:, i], max[:, i], 
                                 alpha=0.6, color=color, label=f'{label}.Bound')
         else:
             print("iqr")
@@ -326,9 +335,9 @@ def plot_stats(x:np.ndarray, data_list:list, fig=None,axs=None,labels:list=[],le
             Q3 = np.percentile(np.array(data), 75,axis=0)  # 75th percentile
 
             for i, ax in enumerate(axs):
-                ax.plot(x, Q2[:, i], ls='-',color=color, label=f"{label}.mean", alpha=0.7, linewidth=3)
+                ax.plot(time, Q2[:, i], ls='-',color=color, label=f"{label}.mean", alpha=0.7, linewidth=3)
                 # Plot 95% CI band
-                ax.fill_between(x, Q1[:, i], Q3[:, i], 
+                ax.fill_between(time, Q1[:, i], Q3[:, i], 
                                 alpha=0.3, color=color, label=f'{label}.CI95')
     if legend:
         handles, labels = axs[0].get_legend_handles_labels()
@@ -343,6 +352,7 @@ def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_t
             unique_var_id.append(f"{x}")
             
     data_list_per_var = split_reps(data_list,rep_split)
+    time_list_per_var = split_reps(time_list,rep_split)
     
     # plot gt's mean and ci for each var
     if plot:
@@ -360,7 +370,7 @@ def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_t
         )
         if stats:
             plot_stats(
-                time_list[0],
+                time_list_per_var,
                 data_list_per_var,
                 fig=fig,
                 axs=ax,
@@ -370,7 +380,7 @@ def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_t
                 datatype=data_type
             )
         interactive_plot(fig,ax)
-    return data_list_per_var,unique_var_id
+    return time_list_per_var,data_list_per_var,unique_var_id
 """ plot each axis as 1 source for spread"""
 def plot_multi_source_spread(x_list:list,data_list:list,
                            dim:int,labels:list,xtype:str,datatype:str,
