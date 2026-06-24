@@ -284,7 +284,7 @@ if __name__ == "__main__":
                              "gui":{"on":True,
                                     "freq":30,
                                     "3d":True,
-                                    "vel":False},
+                                    "vel":True},
                              "log":{"on":True}
                              },
                 "session_data":{
