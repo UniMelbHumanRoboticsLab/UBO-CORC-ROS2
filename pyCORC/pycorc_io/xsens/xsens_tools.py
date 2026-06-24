@@ -14,7 +14,9 @@ Parse Functions
 """
 def parse_string(message:bytes):
     return message.decode('utf-8')
-
+def parse_COM_kinematics(message:bytes):
+    COM_kinematics = np.frombuffer(message, dtype='>f4').tolist()    
+    return COM_kinematics
 def parse_UL_joint_angle(message: bytes):
     # Compute starting offsets for each joint
     JOINT_RIGHT_T4_SHOULDER = 6

@@ -63,6 +63,7 @@ class xsens_server(QObject):
 
         self.right = {}
         self.left = {}
+        self.CoM = []
         self.timecode = ""
 
     """
@@ -85,7 +86,6 @@ class xsens_server(QObject):
             self.Connected = True
             self.sampling = 0
             self.server_socket.setblocking(True)
-            print(self.server_socket.getblocking())
         except Exception as e:
             print('XSENS: Connection failed! (', e, ')')
             self.Connected = False
@@ -101,33 +101,32 @@ class xsens_server(QObject):
             com = 24+3*12
             # timecode 24+16 (always the last 24+16)
             time_bytes = 24+16
-            raw_message = self.server_conn.recv(ja+time_bytes)
-            
+            raw_message = self.server_conn.recv(ja+time_bytes+com)
 
-            # print()
-            
             #timecode
-            timecode = f"{parse_string(raw_message[-40:-40+6])}\n"
-            timecode += f"{parse_string(raw_message[-16:])}\n"
+            # timecode = f"{parse_string(raw_message[-40:-40+6])}\n"
+            timecode = f"{parse_string(raw_message[-12:])}\n"
+            
+            #CoM data
+            # timecode += f"{parse_string(raw_message[584:584+6])}\n"
+            CoM =  parse_COM_kinematics(raw_message[584+24:584+24+36])
             
             #joints identifier
-            timecode += f"{parse_string(raw_message[:6])}\n"
+            # timecode += f"{parse_string(raw_message[:6])}\n"
             right,left = parse_UL_joint_angle(raw_message[24:584])
 
             self.right=right
             self.left=left
+            self.CoM = CoM
             self.timecode = timecode
             self.Connected=True
             # print("WHERE THE HELL")
         except Exception as e:
             # print(f"Error: {e}")
-            # print(raw_message)
-            # print(len(raw_message))
-            # print(raw_message)
-            
             
             self.right={"dict":place_holder_angles,"list":list(place_holder_angles.values())}
             self.left={"dict":place_holder_angles,"list":list(place_holder_angles.values())}
+            self.CoM = [0,0,0,0,0,0,0,0,0]
             self.timecode = "ERROR TIME"
 
 
@@ -147,6 +146,7 @@ class xsens_server(QObject):
                 "xsens_fps":self.xsens_fps,
                 "right":self.right,
                 "left":self.left,
+                "CoM":self.CoM
             }
         else:
             data = {
@@ -154,7 +154,7 @@ class xsens_server(QObject):
                 "xsens_fps":self.xsens_fps,
                 "right":self.right,
                 "left":self.left,
-                
+                "CoM":self.CoM
             }
         self.data_ready.emit(data)
 
@@ -216,7 +216,10 @@ class MainWindow(QMainWindow):
             txt = text["timecode"] + "XSENS FPS: " + f"{text['xsens_fps']:.2f}\n"
             right = text["right"]["dict"]
             left = text["left"]["dict"]
-
+            CoM = text["CoM"]
+            
+            txt += f"CoM Position:\t {CoM[0:3]}\n"
+            txt += f"CoM Velocity:\t {CoM[3:6]}\n"
             # print(right.keys(),left.keys())
             for key in joint_keys:
                 txt += f"{key:15}: {left[key]:8.4f} {right[key]:8.4f}\n"
@@ -238,4 +241,5 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = MainWindow()
     win.show()
-    sys.exit(app.exec())
+    sys.exit(app.exec())# -*- coding: utf-8 -*-
+
