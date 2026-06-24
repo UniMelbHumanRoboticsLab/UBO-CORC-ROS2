@@ -311,7 +311,6 @@ def plot_stats(time_list:list, data_list:list, fig=None,axs=None,labels:list=[],
                 limits[0] = cur_min
             if cur_max > limits[0]:
                 limits[1] = cur_max
-        limits = [np.min(temp_arr),np.max(temp_arr)]
         for i, ax in enumerate(axs):
             axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
 
@@ -320,13 +319,13 @@ def plot_stats(time_list:list, data_list:list, fig=None,axs=None,labels:list=[],
         time = x[0]
         if dist == "gaussian":
             
-            mean,median,max,min,_,_ = compute_central_tendency(data)
+            mid,max,min,mean,moe,median,q1,q3,iqr,mad = compute_central_tendency(data)
             
             for i, ax in enumerate(axs):
                 # plot median
                 ax.plot(time, median[:, i], ls=':',color=color, label=f"{label}.median", alpha=1, linewidth=1)
                 # Plot min max bound
-                ax.fill_between(time, min[:, i], max[:, i], 
+                ax.fill_between(time, (mean-moe)[:, i], (mean+moe)[:, i], 
                                 alpha=0.6, color=color, label=f'{label}.Bound')
         else:
             print("iqr")

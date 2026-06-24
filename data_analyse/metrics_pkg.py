@@ -19,10 +19,10 @@ def compute_norm_error(recon,comparator):
     denum[d_neg] = min_med_range[d_neg]
     
     norm_error = d/denum
-    cleaned,_,_ = remove_outliers_iqr(norm_error,3)
+    # cleaned,_,_ = remove_outliers_iqr(norm_error,3)
     # average_norm_error = np.array([np.mean(dim_norm_error,axis=0) for dim_norm_error in cleaned])
-    average_norm_error = np.mean(cleaned,axis=0)
-    # average_norm_error = np.mean(norm_error,axis=0)
+    # average_norm_error = np.mean(cleaned,axis=0)
+    average_norm_error = np.mean(norm_error,axis=0)
     return average_norm_error
 
 def compute_norm_tau_peak_diff(recon,comparator):
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         dim = 2,
         labels=["cs","sc","sc2"],xtype="time",datatype="sinu",
         split=1,
-        fig_label=f"sanity_check_metric"
+        fig_label="sanity_check_metric"
         )
     interactive_plot(fig,axis)
     

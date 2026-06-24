@@ -8,7 +8,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 all_subject = True
-plot_per_patient = True
+plot_per_patient = False
 if all_subject:
     """
     Every subject
@@ -36,7 +36,7 @@ if all_subject:
         num_of_gaussians = []
         for sub in range(11,25):
             session_data = {
-                "exp_id":"exp1_trained",
+                "exp_id":"exp1_trained2",
                 "patient_id":f"p{p}",
                 "subject_id":f"sub{sub}",
                 "sbmvmt_num":sm_num,
@@ -167,7 +167,7 @@ else:
     Single subject
     """
     session_data = {
-        "exp_id":"exp1_trained",
+        "exp_id":"exp1_trained2",
         "patient_id":"p2",
         "subject_id":"sub11",
         "sbmvmt_num":2,

@@ -1,22 +1,29 @@
 import numpy as np
 
 def compute_central_tendency(samples_arr):
-    mean = np.mean(np.array(samples_arr),axis=0)
-    max = np.max(np.array(samples_arr),axis=0)
-    min = np.min(np.array(samples_arr),axis=0)
-    median = np.median(np.array(samples_arr),axis=0)
-    median = (max+min)/2
+    samples = np.array(samples_arr)
+    
+    mean = np.mean(samples,axis=0)
+    max = np.max(samples,axis=0)
+    min = np.min(samples,axis=0)
+    mid = (max+min)/2
 
-    std = np.std(np.array(samples_arr), axis=0, ddof=0)  # ddof=1 for sample std
-    n = np.array(samples_arr).shape[0]  # number of repetitions
+    std = np.std(samples, axis=0, ddof=1)  # ddof=1 for sample std
+    n = samples.shape[0]  # number of repetitions
     # 95% CI using t-distribution
     sem = std / np.sqrt(n)  # standard error of mean
     from scipy import stats
     t_crit = stats.t.ppf(0.975, df=n-1) 
-    ci_95 = t_crit * sem  # ✅ Margin of error           
-    u = mean + ci_95
-    l = mean - ci_95
-    return mean,median,max,min,u,l
+    moe = t_crit * sem  # ✅ Margin of error
+    
+    
+    median = np.median(samples,axis=0)
+    q1 = np.percentile(samples, 25, axis=0,method='midpoint')
+    q3 = np.percentile(samples, 75, axis=0,method='midpoint')
+    iqr = q3 - q1
+    mad = np.median(np.abs(samples-median),axis=0) 
+    
+    return mid,max,min,mean,moe,median,q1,q3,iqr,mad
 
 def remove_outliers_iqr(ori_data, multiplier=1.5):
     """

@@ -5,6 +5,7 @@ import sys,os
 import numpy as np
 np.set_printoptions(suppress=True,precision=4) # suppress scientific notation
 import time as times
+from datetime import datetime
 
 from tpgmm_pkg.TPGMM import TPGMM
 from tpgmm_pkg.tpgmm_util import arrange_data,get_optim_nbGauss,save_results
@@ -17,7 +18,8 @@ from data_analyse.stats_pkg import compute_central_tendency
 import matplotlib.pyplot as plt
 
 plt_results = False
-retrain = True
+retrain = False
+# retrain = True
 deploy = True
 
 GREEN = '\033[92m'
@@ -33,7 +35,7 @@ for p in range(1,4):
         
     for sub in range(11,25):
         session_data = {
-            "exp_id":"exp1",
+            "exp_id":"exp1_trained2",
             "patient_id":f"p{p}",
             "subject_id":f"sub{sub}",
             "sbmvmt_num":sm_num,
@@ -42,8 +44,8 @@ for p in range(1,4):
         }
         subject_path = os.path.join(os.path.dirname(__file__), '../..',f'logs/pycorc_recordings/{session_data["exp_id"]}/{session_data["patient_id"]}/{session_data["subject_id"]}')
         
-        for combi_num in range(6):
-            for sample_num in range(4):
+        for combi_num in range(0,6):
+            for sample_num in range(0,4):
                 print(f"\n===== {session_data['patient_id']}-{session_data['subject_id']}-{combi_num}-{sample_num} =================")
                 train_list,val_list,test_list = compile_train_val_test_data(session_data,subject_path,combi_num,sample_num,False)
                 all_data = []
@@ -69,20 +71,25 @@ for p in range(1,4):
                 exist = os.path.exists(tpgmm_file_path)
                 
                 if exist and not retrain:
-                    with open(tpgmm_file_path, 'rb') as outp:
+                    with open(tpgmm_file_path, 'rb') as outp:                        
                         tpgmm = pickle.load(outp)
                         assert isinstance(tpgmm, TPGMM)
                         num_of_gauss = tpgmm.num_of_gauss
                         LL = tpgmm.converged_LL
                         
-                        print(f"{tpgmm.model_id} found")
-                        color = GREEN if tpgmm.training_status == "Success" else RED
-                        print(f"{color}Training Status: {tpgmm.training_status}{RESET}")
-                        print(f"Number of Gaussians: {num_of_gauss}")
-                        print(f"Converged Likelihood: {LL}")
-                        print(f"BIC Elapsed \t\t= {tpgmm.bic_time:.4f}s")
-                        print(f"Training: Elapsed \t= {tpgmm.training_time:.4f}s")
-                        total_time += tpgmm.training_time+tpgmm.bic_time
+                        if len(LL) > 4:
+                            print(f"{tpgmm.model_id} found")
+                            stat_info = os.stat(tpgmm_file_path)
+                            creation_time = stat_info.st_mtime
+                            readable_time = datetime.fromtimestamp(creation_time)
+                            print(f"File created: {readable_time}")
+                            color = GREEN if tpgmm.training_status == "Success" else RED
+                            print(f"{color}Training Status: {tpgmm.training_status}{RESET}")
+                            print(f"Number of Gaussians: {num_of_gauss}")
+                            print(f"Converged Likelihood: {LL}")
+                            print(f"BIC Elapsed \t\t= {tpgmm.bic_time:.4f}s")
+                            print(f"Training: Elapsed \t= {tpgmm.training_time:.4f}s")
+                            total_time += tpgmm.training_time+tpgmm.bic_time
                 else:
                     fail = True
                     retry = 0
@@ -157,14 +164,20 @@ for p in range(1,4):
                     # get the mean of training samples for each variation, repeat once for the comparator as there is only 1 validation sample
                     train_comparators_per_var = []
                     for samples_per_var in gt_list_per_var:
-                        mean,median,max,min,_,_ = compute_central_tendency(samples_per_var)
+                        mid,max,min,mean,moe,median,q1,q3,iqr,mad = compute_central_tendency(samples_per_var)
                         
                         comparator = {
-                            "samples":samples_per_var,
-                            "mean":mean,
-                            "median":median,
+                            "samples":samples_per_var,       
+                            "mid":mid,
                             "max":max,
                             "min":min,
+                            "mean":mean,
+                            "moe":moe,
+                            "median":median,
+                            "q1":q1,
+                            "q3":q3,
+                            "iqr":iqr,
+                            "mad":mad
                             }
                         train_comparators_per_var.append(comparator)
                         
@@ -258,14 +271,20 @@ for p in range(1,4):
                     # get the mean of each test validation, and repeat for 4 repetitions
                     test_comparators_per_var = []
                     for samples_per_var in gt_list_per_var:
-                        mean,median,max,min,_,_ = compute_central_tendency(samples_per_var)
+                        mid,max,min,mean,moe,median,q1,q3,iqr,mad = compute_central_tendency(samples_per_var)
                         
                         comparator = {
-                            "samples":samples_per_var,        
-                            "mean":mean,
-                            "median":median,
+                            "samples":samples_per_var,       
+                            "mid":mid,
                             "max":max,
                             "min":min,
+                            "mean":mean,
+                            "moe":moe,
+                            "median":median,
+                            "q1":q1,
+                            "q3":q3,
+                            "iqr":iqr,
+                            "mad":mad
                             }
                         
                         for i in range(session_data["num_rep"]):

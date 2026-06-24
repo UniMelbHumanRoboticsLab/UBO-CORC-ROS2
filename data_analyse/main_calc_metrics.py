@@ -32,7 +32,7 @@ for p in range(1,4):
         
     for sub in range(11,25):
         session_data = {
-            "exp_id":"exp1_trained",
+            "exp_id":"exp1_trained2",
             "patient_id":f"p{p}",
             "subject_id":f"sub{sub}",
             "sbmvmt_num":sm_num,
@@ -48,6 +48,7 @@ for p in range(1,4):
                 # calculate metrics for validation set
                 val_samples = load_npy(f"{subject_path}/repro/val_{combi_num}_{sample_num}.npy")
                 for sample in val_samples:
+                    print(f"{sample['patient_id']}_{sample['subject_id']}_{combi_num}_{sample_num}_{sample['var-id-case']}")
                     sample["avg_norm_error"] = compute_norm_error(sample["recon"],sample["compare"])
                     sample["norm_diff_tau"] = compute_norm_tau_peak_diff(sample["recon"],sample["compare"])
                     sample["coverage"] = compute_coverage(sample["recon"],sample["compare"])
@@ -57,6 +58,7 @@ for p in range(1,4):
                 # calculate metrics for test set
                 test_samples = load_npy(f"{subject_path}/repro/test_{combi_num}_{sample_num}.npy")
                 for sample in test_samples:
+                    print(f"{sample['patient_id']}_{sample['subject_id']}_{combi_num}_{sample_num}_{sample['var-id-case']}")
                     sample["avg_norm_error"] = compute_norm_error(sample["recon"],sample["compare"])
                     sample["norm_diff_tau"] = compute_norm_tau_peak_diff(sample["recon"],sample["compare"])
                     sample["coverage"] = compute_coverage(sample["recon"],sample["compare"])
