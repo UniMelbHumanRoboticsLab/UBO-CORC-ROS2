@@ -1,28 +1,27 @@
-# completed
-# sub3 - p1,p2
-
 import sys,os
 import numpy as np
 np.set_printoptions(suppress=True,precision=4) # suppress scientific notation
 import time as times
 from datetime import datetime
 
+from lut_pkg.LookUpTable import LookUpTable
 from tpgmm_pkg.TPGMM import TPGMM
 from tpgmm_pkg.tpgmm_util import arrange_data,get_optim_nbGauss,save_results
 import pickle
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..','..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from data_visual.plot_pkg import plot_multi_dim,plot_stats,interactive_plot,split_plot_all
 from data_process.file_util_pkg import create_dir,compile_train_val_test_data
 from data_analyse.stats_pkg import compute_central_tendency
 import matplotlib.pyplot as plt
 
-plt_results = False
+plt_results = True
 retrain = False
 # retrain = True
 deploy = True
 
 GREEN = '\033[92m'
+
 RED = '\033[91m'
 RESET = '\033[0m'
 
@@ -42,7 +41,7 @@ for p in range(1,4):
             "num_rep":4,
             "variants":["var_1","var_2","var_3","var_4","var_5","var_6"] #
         }
-        subject_path = os.path.join(os.path.dirname(__file__), '../..',f'logs/pycorc_recordings/{session_data["exp_id"]}/{session_data["patient_id"]}/{session_data["subject_id"]}')
+        subject_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["exp_id"]}/{session_data["patient_id"]}/{session_data["subject_id"]}')
         
         for combi_num in range(0,6):
             for sample_num in range(0,4):
@@ -59,6 +58,8 @@ for p in range(1,4):
                 """
                 num_of_frames = session_data["sbmvmt_num"]+1
                 num_of_dims = 30
+                lastInputIndex = 19  # always arrange data such that [input indices, output indices]
+                lastOutputIndex = 29
                 train_tp_data,train_sample_list = arrange_data(train_list,num_of_frames,num_of_dims)
                 _,val_sample_list = arrange_data(val_list,num_of_frames,num_of_dims)
                 _,test_sample_list = arrange_data(test_list,num_of_frames,num_of_dims)
@@ -126,14 +127,15 @@ for p in range(1,4):
                         # Dump data with highest protocol for best performance
                         pickle.dump(tpgmm,file, protocol=pickle.HIGHEST_PROTOCOL)
                 
+                """
+                Initialize the LookUp Table
+                """  
+                lut = LookUpTable(all_data, lastInputIndex, lastOutputIndex)
+                
+                """
+                Deployment pipeline
+                """
                 if deploy:
-                    """
-                    Deployment pipeline (condition then GMR)
-                    """
-                    lastInputIndex = 19  # always arrange data such that [input indices, output indices]
-                    lastOutputIndex = 29
-                    
-                    
                     """
                     compile training data
                     """
@@ -154,8 +156,9 @@ for p in range(1,4):
                     for i,(val_dict,sample) in enumerate(zip(val_list,val_sample_list)): 
                         DataOut = sample.Data[:,lastInputIndex+1:]
                         sample_id = val_dict["id"].split(".")
-                        var_id_list.append(sample_id[0])
-                    
+                        
+                        # insert just before its training variation
+                        var_id_list.insert((i+1)*4-1,sample_id[0])
                         time_list.insert((i+1)*4-1,val_dict["time"])
                         gt_list.insert((i+1)*4-1,DataOut)
                         id_list.insert((i+1)*4-1,val_dict["id"])
@@ -164,7 +167,7 @@ for p in range(1,4):
                     # get the mean of training samples for each variation, repeat once for the comparator as there is only 1 validation sample
                     train_comparators_per_var = []
                     for samples_per_var in gt_list_per_var:
-                        mid,max,min,mean,moe,median,q1,q3,iqr,mad = compute_central_tendency(samples_per_var)
+                        mid,max,min,mean,sem,moe,median,q1,q3,iqr,mad = compute_central_tendency(samples_per_var)
                         
                         comparator = {
                             "samples":samples_per_var,       
@@ -172,6 +175,7 @@ for p in range(1,4):
                             "max":max,
                             "min":min,
                             "mean":mean,
+                            "sem":sem,
                             "moe":moe,
                             "median":median,
                             "q1":q1,
@@ -185,25 +189,27 @@ for p in range(1,4):
                     perform reconstruction for validation task parameters
                     """
                     recon_list = []
+                    recon_lut_list = []
                     gt_list = []
                     id_list = []
                     time_list = []
-                    var_id_list = []
                     start = times.perf_counter()
                     for val_dict,sample in zip(val_list,val_sample_list): 
                         DataIn  = sample.Data[:,0:lastInputIndex+1]
                         DataOut = sample.Data[:,lastInputIndex+1:]
-                        expected_data,exp_sigma,_,_ = tpgmm.repro_condition_gmr(DataIn,sample,lastInputIndex,lastOutputIndex,DS=False,new_dt=0)
-                        sample_id = val_dict["id"].split(".")
-                        var_id_list.append(sample_id[0])
-                    
-                        time_list.append(val_dict["time"])
-                        recon_list.append(expected_data)
+                        
                         gt_list.append(DataOut)
                         id_list.append(val_dict["id"])
+                        time_list.append(val_dict["time"])
+                
+                        expected_data,exp_sigma,_,_ = tpgmm.repro_condition_gmr(DataIn,sample,lastInputIndex,lastOutputIndex,DS=False,new_dt=0)
+                        recon_list.append(expected_data)
+                        
+                        lut_output = lut.search_closest_output(DataIn)
+                        recon_lut_list.append(lut_output)
                     
                     # save the results
-                    save_results(session_data["patient_id"],session_data["subject_id"],tpgmm,time_list,recon_list,train_comparators_per_var,id_list,f"{subject_path}/repro/val_{combi_num}_{sample_num}")
+                    save_results(session_data["patient_id"],session_data["subject_id"],tpgmm,time_list,recon_list,recon_lut_list,gt_list,train_comparators_per_var,id_list,f"{subject_path}/repro/val_{combi_num}_{sample_num}")
                     end = times.perf_counter()
                     total_time += (end - start)
                     print(f"Fast Deploy:Elapsed \t= {(end - start):.4f}s")
@@ -232,7 +238,20 @@ for p in range(1,4):
                             split=1,
                             legend=False,
                             prev_fig=stats_fig,prev_ax=stats_ax,
-                            shuffle=True
+                            color_set="Dark2"
+                        )
+                        stats_fig,stats_ax = plot_multi_dim(
+                            x_list=time_list,
+                            data_list=recon_lut_list,
+                            dim=10,
+                            labels=[f"{i}.Recon LUT" for i in id_list],
+                            xtype="time",
+                            datatype="tau",
+                            fig_label=f"{session_data['exp_id']} Val Compare {combi_num}-{sample_num}",
+                            split=1,
+                            legend=False,
+                            prev_fig=stats_fig,prev_ax=stats_ax,
+                            color_set="Set2"
                         )
                         plot_stats(
                             time_list_per_var,
@@ -249,6 +268,7 @@ for p in range(1,4):
                     perform reconstruction for test task parameters
                     """
                     recon_list = []
+                    recon_lut_list = []
                     gt_list = []
                     id_list = []
                     time_list = []
@@ -257,21 +277,25 @@ for p in range(1,4):
                     for test_dict,sample in zip(test_list,test_sample_list): 
                         DataIn  = sample.Data[:,0:lastInputIndex+1]
                         DataOut = sample.Data[:,lastInputIndex+1:]
-                        expected_data,exp_sigma,_,_ = tpgmm.repro_condition_gmr(DataIn,sample,lastInputIndex,lastOutputIndex,DS=False,new_dt=0)
+                        
                         sample_id = test_dict["id"].split(".")
-                        var_id_list.append(sample_id[0])
-                    
-                        time_list.append(test_dict["time"])
-                        recon_list.append(expected_data)
                         gt_list.append(DataOut)
                         id_list.append(test_dict["id"])
+                        var_id_list.append(sample_id[0])
+                        time_list.append(test_dict["time"])
+                        
+                        expected_data,exp_sigma,_,_ = tpgmm.repro_condition_gmr(DataIn,sample,lastInputIndex,lastOutputIndex,DS=False,new_dt=0)
+                        recon_list.append(expected_data)
+                        
+                        lut_output = lut.search_closest_output(DataIn)
+                        recon_lut_list.append(lut_output)
+                        
                     time_list_per_var,gt_list_per_var,unique_var_id_list = split_plot_all(var_id_list,time_list,gt_list,id_list,rep_split=4,fig_label=f"Test GT {combi_num}-{sample_num}")
-                    _,recon_list_per_var,_ = split_plot_all(var_id_list,time_list,recon_list,id_list,rep_split=4,fig_label="Test Recon {combi_num}-{sample_num}")
                     
-                    # get the mean of each test validation, and repeat for 4 repetitions
+                    # get the mean of each test ground truth, and repeat for 4 repetitions
                     test_comparators_per_var = []
                     for samples_per_var in gt_list_per_var:
-                        mid,max,min,mean,moe,median,q1,q3,iqr,mad = compute_central_tendency(samples_per_var)
+                        mid,max,min,mean,sem,moe,median,q1,q3,iqr,mad = compute_central_tendency(samples_per_var)
                         
                         comparator = {
                             "samples":samples_per_var,       
@@ -279,6 +303,7 @@ for p in range(1,4):
                             "max":max,
                             "min":min,
                             "mean":mean,
+                            "sem":sem,
                             "moe":moe,
                             "median":median,
                             "q1":q1,
@@ -290,7 +315,7 @@ for p in range(1,4):
                         for i in range(session_data["num_rep"]):
                             test_comparators_per_var.append(comparator)
                     # save the results
-                    save_results(session_data["patient_id"],session_data["subject_id"],tpgmm,time_list,recon_list,test_comparators_per_var,id_list,f"{subject_path}/repro/test_{combi_num}_{sample_num}")
+                    save_results(session_data["patient_id"],session_data["subject_id"],tpgmm,time_list,recon_list,recon_lut_list,gt_list,test_comparators_per_var,id_list,f"{subject_path}/repro/test_{combi_num}_{sample_num}")
                     """ END OF PIPELINE"""
                     end = times.perf_counter()
                     print(f"Fast Deploy:Elapsed \t= {(end - start):.4f}s")
@@ -314,7 +339,6 @@ for p in range(1,4):
                             data_list=recon_list,
                             dim=10,
                             labels=[f"{x}.Test Recon" for x in id_list],
-                
                             xtype="time",
                             datatype="tau",
                             fig_label=f"{session_data['exp_id']} Test Compare {combi_num}-{sample_num}",
@@ -322,8 +346,22 @@ for p in range(1,4):
                             legend=False,
                             prev_fig=stats_fig,
                             prev_ax= stats_ax,
-                            shuffle=True
+                            color_set="Dark2"
                         )
+                        stats_fig,stats_ax = plot_multi_dim(
+                            x_list=time_list,
+                            data_list=recon_lut_list,
+                            dim=10,
+                            labels=[f"{i}.Test Recon LUT" for i in id_list],
+                            xtype="time",
+                            datatype="tau",
+                            fig_label=f"{session_data['exp_id']} Test Compare {combi_num}-{sample_num}",
+                            split=4,
+                            legend=False,
+                            prev_fig=stats_fig,prev_ax=stats_ax,
+                            color_set="Set2"
+                        )
+                        
                         plot_stats(
                             time_list_per_var,
                             gt_list_per_var,

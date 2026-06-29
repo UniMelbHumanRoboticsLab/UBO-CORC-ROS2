@@ -166,19 +166,19 @@ def plotPegs_n_Traj(num_of_frames,sampleParam,expected_data,ax):
 """
 save results for future comparison
 """
-def save_results(patient_id,subject_id,tpgmm,time_list,recon_list,comparators_per_var,id_list,filename):
+def save_results(patient_id,subject_id,tpgmm,time_list,recon_list,recon_lut_list,gt_list,comparators_per_var,id_list,filename):
     compile_data = []
     # save the results as follows (time,GT,recon,comparator,sample id)
-    for time,recon,comparator,sample_id in zip(time_list,recon_list,comparators_per_var,id_list):
-        # sample_id = sample_id.split(".")
+    for time,recon,recon_lut,gt,comparator,sample_id in zip(time_list,recon_list,recon_lut_list,gt_list,comparators_per_var,id_list):
         compile_data.append(
             {
                 "patient_id":patient_id,
                 "subject_id":subject_id,
                 "tpgmm_param":tpgmm.num_of_gauss,
                 "var-id-case":sample_id,
-                # "time":time,
+                "gt":gt,
                 "recon":recon,
+                "recon_lut":recon_lut,
                 "compare":comparator,
                 }
             )

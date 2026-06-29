@@ -1,4 +1,9 @@
 import numpy as np
+from scipy import stats
+
+def compute_CI_scale(percent,num_samples):
+    from scipy import stats
+    return stats.t.ppf(percent, df=num_samples-1) 
 
 def compute_central_tendency(samples_arr):
     samples = np.array(samples_arr)
@@ -12,8 +17,8 @@ def compute_central_tendency(samples_arr):
     n = samples.shape[0]  # number of repetitions
     # 95% CI using t-distribution
     sem = std / np.sqrt(n)  # standard error of mean
-    from scipy import stats
-    t_crit = stats.t.ppf(0.975, df=n-1) 
+    
+    t_crit = compute_CI_scale(0.975,n)
     moe = t_crit * sem  # ✅ Margin of error
     
     
@@ -23,7 +28,7 @@ def compute_central_tendency(samples_arr):
     iqr = q3 - q1
     mad = np.median(np.abs(samples-median),axis=0) 
     
-    return mid,max,min,mean,moe,median,q1,q3,iqr,mad
+    return mid,max,min,mean,sem,moe,median,q1,q3,iqr,mad
 
 def remove_outliers_iqr(ori_data, multiplier=1.5):
     """

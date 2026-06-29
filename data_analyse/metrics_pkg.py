@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import integrate
 from dtaidistance import dtw_ndim,dtw
-from stats_pkg import compute_central_tendency,remove_outliers_iqr
+from stats_pkg import compute_central_tendency,remove_outliers_iqr,compute_CI_scale
 
 q = ['trunk_ie','trunk_aa','trunk_fe',
 	'clav_dep_ev','clav_prot_ret',
@@ -9,38 +9,54 @@ q = ['trunk_ie','trunk_aa','trunk_fe',
 	'elbow_fe','elbow_ps']
     
 def compute_norm_error(recon,comparator):
-    max_med_range = comparator["max"]-comparator["median"]
-    min_med_range = comparator["min"]-comparator["median"]
+    # normalise using mid, min and max range
+    max_med_range = comparator["max"]-comparator["mid"]
+    min_med_range = comparator["min"]-comparator["mid"]
     
     denum = max_med_range.copy()
-    d = recon-comparator["median"]
+    d = recon-comparator["mid"]
     # if residual below median, use the min-med range
     d_neg = d<0
     denum[d_neg] = min_med_range[d_neg]
-    
     norm_error = d/denum
-    # cleaned,_,_ = remove_outliers_iqr(norm_error,3)
-    # average_norm_error = np.array([np.mean(dim_norm_error,axis=0) for dim_norm_error in cleaned])
-    # average_norm_error = np.mean(cleaned,axis=0)
+    
+    # # normalise using t-score normalisation
+    # d = np.abs(recon-comparator["mean"])
+    # t_crit = compute_CI_scale(0.95,len(comparator["samples"]))
+    # norm_error = d/(t_crit*comparator["sem"])
+    
+    # # normalise using median-MAD
+    # d = np.abs(recon-comparator["median"])
+    # norm_error = d/(comparator["mad"]*3)
+    
     average_norm_error = np.mean(norm_error,axis=0)
     return average_norm_error
 
 def compute_norm_tau_peak_diff(recon,comparator):
+    # normalise using mid, min and max range
     peak_tau_recon = compute_tau_peak(recon,0)
     p = np.array(comparator["samples"])
     peak_tau_samples = compute_tau_peak(p,1)
-    mean_peak_tau,median_peak_tau,max_peak_tau,min_peak_tau,_,_ = compute_central_tendency(peak_tau_samples)
+    mid_peak_tau,max_peak_tau,min_peak_tau,mean_peak_tau,sem_peak_tau,moe_peak_tau,median_peak_tau,q1_peak_tau,q3_peak_tau,iqr_peak_tau,mad_peak_tau = compute_central_tendency(peak_tau_samples)
      
-    max_med_range = max_peak_tau-median_peak_tau
-    min_med_range = min_peak_tau-median_peak_tau
+    max_med_range = max_peak_tau-mid_peak_tau
+    min_med_range = min_peak_tau-mid_peak_tau
       
     denum = max_med_range.copy()
-    d = peak_tau_recon - median_peak_tau
+    d = peak_tau_recon - mid_peak_tau
     # if residual below median, use the min-med range
     d_neg = d<0
     denum[d_neg] = min_med_range[d_neg]
     norm_error = d/denum
     
+    # # normalise using t-score normalisation
+    # d = np.abs(peak_tau_recon-mean_peak_tau)
+    # t_crit = compute_CI_scale(0.95,len(comparator["samples"]))
+    # norm_error = d/(t_crit*sem_peak_tau)
+    
+    # # normalise using median-MAD
+    # d = np.abs(peak_tau_recon-median_peak_tau)
+    # norm_error = d/(mad_peak_tau*3)
     return norm_error
 
 def compute_coverage(recon,comparator):

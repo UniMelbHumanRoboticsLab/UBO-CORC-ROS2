@@ -16,11 +16,13 @@ def sanity_check(sample):
     print_string([f"{'metric':10}",
                    f"{'joint':15}",
                    f"{'diff':10}"])
-    for metric in ["avg_norm_error","norm_diff_tau","coverage"]:
-        for i,joint in enumerate(q):
-            print_string([f"{metric:10}",
-                           f"{joint:15}",
-                           f"{sample[metric][i]:10.5f}"])
+    for cur_case in ["gt","recon","recon_lut"]:
+        for metric in ["avg_norm_error","norm_diff_tau","coverage"]:
+            for i,joint in enumerate(q):
+                case_metric = f"{cur_case}_{metric}"
+                print_string([f"{case_metric:10}",
+                               f"{joint:15}",
+                               f"{sample[case_metric][i]:10.5f}"])
         print()
     print()
 
@@ -49,9 +51,10 @@ for p in range(1,4):
                 val_samples = load_npy(f"{subject_path}/repro/val_{combi_num}_{sample_num}.npy")
                 for sample in val_samples:
                     print(f"{sample['patient_id']}_{sample['subject_id']}_{combi_num}_{sample_num}_{sample['var-id-case']}")
-                    sample["avg_norm_error"] = compute_norm_error(sample["recon"],sample["compare"])
-                    sample["norm_diff_tau"] = compute_norm_tau_peak_diff(sample["recon"],sample["compare"])
-                    sample["coverage"] = compute_coverage(sample["recon"],sample["compare"])
+                    for i in ["gt","recon","recon_lut"]:
+                        sample[i+"_avg_norm_error"] = compute_norm_error(sample[i],sample["compare"])
+                        sample[i+"_norm_diff_tau"] = compute_norm_tau_peak_diff(sample[i],sample["compare"])
+                        sample[i+"_coverage"] = compute_coverage(sample[i],sample["compare"])
                     sanity_check(sample)
                 val_samples_compile += val_samples
                 
@@ -59,9 +62,10 @@ for p in range(1,4):
                 test_samples = load_npy(f"{subject_path}/repro/test_{combi_num}_{sample_num}.npy")
                 for sample in test_samples:
                     print(f"{sample['patient_id']}_{sample['subject_id']}_{combi_num}_{sample_num}_{sample['var-id-case']}")
-                    sample["avg_norm_error"] = compute_norm_error(sample["recon"],sample["compare"])
-                    sample["norm_diff_tau"] = compute_norm_tau_peak_diff(sample["recon"],sample["compare"])
-                    sample["coverage"] = compute_coverage(sample["recon"],sample["compare"])
+                    for i in ["gt","recon","recon_lut"]:
+                        sample[i+"_avg_norm_error"] = compute_norm_error(sample[i],sample["compare"])
+                        sample[i+"_norm_diff_tau"] = compute_norm_tau_peak_diff(sample[i],sample["compare"])
+                        sample[i+"_coverage"] = compute_coverage(sample[i],sample["compare"])
                     sanity_check(sample)
                 test_samples_compile += test_samples
         

@@ -11,7 +11,7 @@ import numpy as np
 import sys,os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from data_process.file_util_pkg import split_reps
-from data_analyse.stats_pkg import compute_central_tendency,remove_outliers_iqr
+from data_analyse.stats_pkg import compute_central_tendency,remove_outliers_iqr,compute_CI_scale
 
 #================HELPER FUNCTIONS====================================
 """TEX functions"""
@@ -40,11 +40,8 @@ def get_tex_dim_labels(datatype):
     
     return dim_labels
 """ get muliti color """
-def get_n_colors(n_colors:int,split=4,shuffle=False):
-    if shuffle:
-        cmap = plt.colormaps['Dark2']
-    else:
-        cmap = plt.colormaps['Set1']  
+def get_n_colors(n_colors:int,split=4,color_set="Set1"):
+    cmap = plt.colormaps[color_set]  
     if n_colors % split == 0 and n_colors/split >= 10:
         cmap = plt.colormaps['tab10']  
         
@@ -62,7 +59,7 @@ def get_n_colors(n_colors:int,split=4,shuffle=False):
 """plot each axis as 1 dimension from multiple sources"""
 def plot_multi_dim(x_list:list,data_list:list,
                            dim:int,labels:list,xtype:str,datatype:str,
-                           split=4,shuffle=False,
+                           split=4,color_set="Set1",
                            sharex:bool=True,semilogx:bool=False,legend:bool=True,
                            fig_label:str="Take1",
                            show_stats:bool=False,show_zero_cross:bool=False,
@@ -71,7 +68,7 @@ def plot_multi_dim(x_list:list,data_list:list,
     if "rad" in datatype:
         temp = [np.rad2deg(data) for data in data_list]
         data_list = temp
-    colors = get_n_colors(len(x_list),split,shuffle)
+    colors = get_n_colors(len(x_list),split,color_set)
     # init fig, axes
     if prev_fig is not None and prev_ax is not None:
         fig = prev_fig
@@ -264,7 +261,7 @@ def interactive_plot(fig, axs):
             group_id = legend_lines[line]["group_id"]
             origlines = legend_lines[line]["art"]
             vis = not origlines[0].get_visible() if origlines else True
-            if "median" in leglabel:
+            if "central" in leglabel:
                 #hide/show all items for that variations if pressed mean or CI
                 for (leghandle,leghandle_dict) in legend_lines.items():
                     if leghandle_dict["group_id"] == group_id:
@@ -319,14 +316,22 @@ def plot_stats(time_list:list, data_list:list, fig=None,axs=None,labels:list=[],
         time = x[0]
         if dist == "gaussian":
             
-            mid,max,min,mean,moe,median,q1,q3,iqr,mad = compute_central_tendency(data)
+            mid,max,min,mean,sem,moe,median,q1,q3,iqr,mad = compute_central_tendency(data)
+            
+            # central = mean
+            # t_crit = compute_CI_scale(0.95,len(data))
+            # l_bound, u_bound = mean-t_crit*sem,mean+t_crit*sem
+            central = mid
+            l_bound, u_bound = min,max
+            # central = median
+            # l_bound, u_bound = median-3*mad,median+3*mad
+            # l_bound, u_bound = q1-1.5*iqr,q3+1.5*iqr
             
             for i, ax in enumerate(axs):
-                # plot median
-                ax.plot(time, median[:, i], ls=':',color=color, label=f"{label}.median", alpha=1, linewidth=1)
-                # Plot min max bound
-                ax.fill_between(time, (mean-moe)[:, i], (mean+moe)[:, i], 
-                                alpha=0.6, color=color, label=f'{label}.Bound')
+                # plot central
+                ax.plot(time, central[:, i], ls=':',color=color, label=f"{label}.central", alpha=1, linewidth=1)
+                # Plot bound
+                ax.fill_between(time, l_bound[:, i], u_bound[:, i],alpha=0.6, color=color, label=f'{label}.Bound')
         else:
             print("iqr")
             Q1 = np.percentile(np.array(data), 25,axis=0)  # 25th percentile
@@ -334,10 +339,10 @@ def plot_stats(time_list:list, data_list:list, fig=None,axs=None,labels:list=[],
             Q3 = np.percentile(np.array(data), 75,axis=0)  # 75th percentile
 
             for i, ax in enumerate(axs):
-                ax.plot(time, Q2[:, i], ls='-',color=color, label=f"{label}.mean", alpha=0.7, linewidth=3)
+                ax.plot(time, Q2[:, i], ls='-',color=color, label=f"{label}.central", alpha=0.7, linewidth=3)
                 # Plot 95% CI band
                 ax.fill_between(time, Q1[:, i], Q3[:, i], 
-                                alpha=0.3, color=color, label=f'{label}.CI95')
+                                alpha=0.3, color=color, label=f'{label}.Bound')
     if legend:
         handles, labels = axs[0].get_legend_handles_labels()
         fig.legend(handles, labels,loc='lower right', ncol=3, draggable=True)
@@ -662,6 +667,7 @@ def plot_violins(
     violin_width=0.4,
     prev_fig=None,prev_axs=None,
     remove_outlier=True,
+    split=1
 ):
     """
     Create smooth violin plot with matplotlib using manual KDE and extended tails.
@@ -702,7 +708,10 @@ def plot_violins(
     fig, ax : matplotlib figure and axis objects
     """       
     # Set colors
-    colors = get_n_colors(len(x_labels),1)
+    colors = get_n_colors(len(x_labels),split)
+    if split != 1:
+        temp_colors = colors[::split] + colors[1::split]
+        colors=temp_colors
     
     # Init figure
     if prev_fig == None and prev_axs == None:
@@ -814,7 +823,7 @@ def plot_violins(
                       marker='D', edgecolors='black', linewidths=1.5)
                 ax.scatter(pos, y_eval[max_density] , color='green', s=40, zorder=5, 
                       marker='o', edgecolors='black', linewidths=1.5)
-                cur_x_labels.append(f"{x_labels[i]}\n"+fr"($\mu$ = {np.mean(data):.4f})"+f"\n(mode = {y_eval[max_density]:.4f})\n(median = {median:.4f})")
+                cur_x_labels.append(f"{x_labels[i]}\n"+fr"($\mu$ = {np.mean(data):.2f})"+f"\n(mode = {y_eval[max_density]:.2f})\n(median = {median:.2f})")
         
             # Add points arranged as horizontal histogram
             if show_points:
