@@ -41,7 +41,7 @@ for p in range(p_start,4):
         # separate variants for train test and save splits to csv
         create_dir(f'{subject_path}/splits')
         separate_train_test_val(session_data["variants"],f'{subject_path}',num_train=4)
-        assert 0
+
         """ init xsens skeleton model """
         body_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["exp_id"]}/subject_measurements/{session_data["subject_id"]}')
         body_params_rbt,ft_grav,removed_bias = get_subject_params(body_path)
