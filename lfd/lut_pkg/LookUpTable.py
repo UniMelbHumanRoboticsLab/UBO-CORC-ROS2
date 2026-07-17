@@ -4,7 +4,8 @@ realmin  = np.finfo(np.float64).tiny
 realmax  = np.finfo(np.float64).max
 
 import sys,os
-sys.path.append(os.path.join(os.path.dirname(__file__)))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..',".."))
+from data_process.post_process_pkg import lpf
 from sklearn.metrics.pairwise import euclidean_distances
 
 class LookUpTable:
@@ -13,7 +14,7 @@ class LookUpTable:
         self.all_input_data = all_data[:,0:input_index+1]
         self.all_output_data = all_data[:,input_index+1:]
         
-    def search_closest_output(self,input_data):
+    def search_closest_output(self,time,input_data):
         closest_output = []
         p = self.all_output_data
         for t in input_data:
@@ -26,4 +27,6 @@ class LookUpTable:
             # closest_vector = self.all_output_data[closest_index]
             closest_output.append(closest_vector)
         closest_output = np.array(closest_output)
-        return closest_output
+        filtered_output   = lpf(time,closest_output,ts=1/100,fc=3,filter_type="low",datatype="LUT", plot_results=False)
+        
+        return filtered_output

@@ -25,16 +25,27 @@ GREEN = '\033[92m'
 RED = '\033[91m'
 RESET = '\033[0m'
 
-for p in range(1,4):
+p_start = 1
+sub_start  = 11
+
+total_monte = 4
+
+# 2 train var - 2 combinations
+# 3 train var - 10 combinations
+# 4 train var - 6 combinations (prev), 7 (current)
+# 5 train var - 6 combinations
+total_combi = 6 
+
+for p in range(p_start,4):
     total_time = 0
     if p == 1:
         sm_num = 2
     else:
         sm_num=4
         
-    for sub in range(11,25):
+    for sub in range(sub_start,25):
         session_data = {
-            "exp_id":"exp1_trained2",
+            "exp_id":"exp1",
             "patient_id":f"p{p}",
             "subject_id":f"sub{sub}",
             "sbmvmt_num":sm_num,
@@ -43,8 +54,8 @@ for p in range(1,4):
         }
         subject_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["exp_id"]}/{session_data["patient_id"]}/{session_data["subject_id"]}')
         
-        for combi_num in range(0,6):
-            for sample_num in range(0,4):
+        for combi_num in range(0,total_combi):
+            for sample_num in range(0,total_monte):
                 print(f"\n===== {session_data['patient_id']}-{session_data['subject_id']}-{combi_num}-{sample_num} =================")
                 train_list,val_list,test_list = compile_train_val_test_data(session_data,subject_path,combi_num,sample_num,False)
                 all_data = []
@@ -78,7 +89,7 @@ for p in range(1,4):
                         num_of_gauss = tpgmm.num_of_gauss
                         LL = tpgmm.converged_LL
                         
-                        if len(LL) > 4:
+                        if len(LL) > 1:
                             print(f"{tpgmm.model_id} found")
                             stat_info = os.stat(tpgmm_file_path)
                             creation_time = stat_info.st_mtime
@@ -205,7 +216,7 @@ for p in range(1,4):
                         expected_data,exp_sigma,_,_ = tpgmm.repro_condition_gmr(DataIn,sample,lastInputIndex,lastOutputIndex,DS=False,new_dt=0)
                         recon_list.append(expected_data)
                         
-                        lut_output = lut.search_closest_output(DataIn)
+                        lut_output = lut.search_closest_output(val_dict["time"],DataIn)
                         recon_lut_list.append(lut_output)
                     
                     # save the results
@@ -226,41 +237,46 @@ for p in range(1,4):
                             fig_label=f"{session_data['exp_id']} Val Compare {combi_num}-{sample_num}",
                             split=1,
                             legend=False,
+                            figsize=(18.33333*0.393701,8.5*0.393701),
+                            color_set="bright",
                         )
                         stats_fig,stats_ax = plot_multi_dim(
                             x_list=time_list,
                             data_list=recon_list,
                             dim=10,
-                            labels=[f"{i}.Recon" for i in id_list],
+                            labels=[f"{i}.TPGMM" for i in id_list],
                             xtype="time",
                             datatype="tau",
                             fig_label=f"{session_data['exp_id']} Val Compare {combi_num}-{sample_num}",
                             split=1,
                             legend=False,
                             prev_fig=stats_fig,prev_ax=stats_ax,
-                            color_set="Dark2"
+                            color_set="bright",
+                            shuffle=5
                         )
                         stats_fig,stats_ax = plot_multi_dim(
                             x_list=time_list,
                             data_list=recon_lut_list,
                             dim=10,
-                            labels=[f"{i}.Recon LUT" for i in id_list],
+                            labels=[f"{i}.LUT" for i in id_list],
                             xtype="time",
                             datatype="tau",
                             fig_label=f"{session_data['exp_id']} Val Compare {combi_num}-{sample_num}",
                             split=1,
                             legend=False,
                             prev_fig=stats_fig,prev_ax=stats_ax,
-                            color_set="Set2"
+                            color_set="bright",
+                            shuffle=100
                         )
                         plot_stats(
                             time_list_per_var,
                             gt_list_per_var,
                             fig=stats_fig,
                             axs=stats_ax,
-                            labels=[f"{x}.Train GT" for x in unique_var_id_list],
+                            labels=[f"{x}.GT" for x in unique_var_id_list],
                             relimit=True,
-                            split=1
+                            split=1,
+                            color_set="bright"
                         )
                         interactive_plot(stats_fig,stats_ax)
                     
@@ -287,7 +303,7 @@ for p in range(1,4):
                         expected_data,exp_sigma,_,_ = tpgmm.repro_condition_gmr(DataIn,sample,lastInputIndex,lastOutputIndex,DS=False,new_dt=0)
                         recon_list.append(expected_data)
                         
-                        lut_output = lut.search_closest_output(DataIn)
+                        lut_output = lut.search_closest_output(test_dict["time"],DataIn)
                         recon_lut_list.append(lut_output)
                         
                     time_list_per_var,gt_list_per_var,unique_var_id_list = split_plot_all(var_id_list,time_list,gt_list,id_list,rep_split=4,fig_label=f"Test GT {combi_num}-{sample_num}")
@@ -327,18 +343,20 @@ for p in range(1,4):
                             x_list=time_list,
                             data_list=gt_list,
                             dim=10,
-                            labels=[f"{x}.Test GT" for x in id_list],
+                            labels=[f"{x}.GT" for x in id_list],
                             xtype="time (s)",
                             datatype="tau",
                             fig_label=f"{session_data['exp_id']} Test Compare {combi_num}-{sample_num}",
                             split=4,
-                            legend=False
+                            legend=False,
+                            figsize=(18.33333*0.393701,18*0.393701),
+                            color_set="bright",
                         )
                         stats_fig,stats_ax = plot_multi_dim(
                             x_list=time_list,
                             data_list=recon_list,
                             dim=10,
-                            labels=[f"{x}.Test Recon" for x in id_list],
+                            labels=[f"{x}.TPGMM" for x in id_list],
                             xtype="time",
                             datatype="tau",
                             fig_label=f"{session_data['exp_id']} Test Compare {combi_num}-{sample_num}",
@@ -346,20 +364,23 @@ for p in range(1,4):
                             legend=False,
                             prev_fig=stats_fig,
                             prev_ax= stats_ax,
-                            color_set="Dark2"
+                            color_set="bright",
+                            shuffle=200
+                            
                         )
                         stats_fig,stats_ax = plot_multi_dim(
                             x_list=time_list,
                             data_list=recon_lut_list,
                             dim=10,
-                            labels=[f"{i}.Test Recon LUT" for i in id_list],
+                            labels=[f"{i}.LUT" for i in id_list],
                             xtype="time",
                             datatype="tau",
                             fig_label=f"{session_data['exp_id']} Test Compare {combi_num}-{sample_num}",
                             split=4,
                             legend=False,
                             prev_fig=stats_fig,prev_ax=stats_ax,
-                            color_set="Set2"
+                            shuffle=300,
+                            color_set="bright",
                         )
                         
                         plot_stats(
@@ -369,7 +390,8 @@ for p in range(1,4):
                             axs=stats_ax,
                             labels=[f"{x}.Test GT" for x in unique_var_id_list],
                             relimit=True,
-                            split=1
+                            split=1,
+                            color_set="bright",
                         )
                         interactive_plot(stats_fig,stats_ax)
                         plt.show()
