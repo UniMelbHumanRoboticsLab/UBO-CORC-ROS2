@@ -17,6 +17,8 @@ from data_visual.plot_pkg import plot_multi_dim,plot_3d_trajectory,split_plot_al
 from pyCORC.pycorc_io.xsens.ub_pckg.ub import ub
 from pyCORC.pycorc_io.package_utils.unpack_json import get_subject_params
 import FreeSimpleGUI as sg
+#importing Pathlib
+from pathlib import Path
 
 p_start = 1
 sub_start  = 11
@@ -38,10 +40,13 @@ for p in range(p_start,4):
         }
         subject_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["exp_id"]}/{session_data["patient_id"]}/{session_data["subject_id"]}')
         
-        # separate variants for train test and save splits to csv
-        create_dir(f'{subject_path}/splits')
-        separate_train_test_val(session_data["variants"],f'{subject_path}',num_train=4)
 
+        # separate variants for train test and save splits to csv
+        # delete existing splits 
+        [file.unlink() for file in Path(f'{subject_path}/splits').iterdir() if file.is_file()] 
+        create_dir(f'{subject_path}/splits')
+        separate_train_test_val(session_data["variants"],f'{subject_path}',num_train=5)
+        # assert 0
         """ init xsens skeleton model """
         body_path = os.path.join(os.path.dirname(__file__), '..',f'logs/pycorc_recordings/{session_data["exp_id"]}/subject_measurements/{session_data["subject_id"]}')
         body_params_rbt,ft_grav,removed_bias = get_subject_params(body_path)
