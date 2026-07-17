@@ -3,10 +3,9 @@ import numpy as np
 import os 
 
 """ select which variation for train and for test """
-def separate_train_test_val(variant_list,path):
+def separate_train_test_val(variant_list,path,num_train=5,num_val=1,num_monte=4):
     # Given numbers
     numbers = len(variant_list)
-      
     def level_sub(sample_id: int) -> tuple[int, int]:
         """
         Map an ID to (level, sublevel).
@@ -18,29 +17,48 @@ def separate_train_test_val(variant_list,path):
         level = 1 if sample_id <= 3 else 2
         sub = ((sample_id - 1) % 3) + 1
         return level, sub
-    
-    def valid_pairs(n=6) -> list[tuple[int, int]]:
+    def valid_tri_combi(n=6) -> list[tuple[int, int]]:
         from itertools import combinations
-        """
-        Keep pairs that are at least 1 level apart AND at least 1 sublevel apart.
-        i.e., level differs and sublevel differs.
-        """
         ids = range(1, n + 1)
         out = []
-        for a, b in combinations(ids, 2):
-            la, sa = level_sub(a)
-            lb, sb = level_sub(b)
-    
-            # "at least 1 level apart" => la != lb
-            # "at least 1 sublevel apart" => sa != sb
-            if la != lb and sa != sb:
-                out.append([a, b])
+        for combi in combinations(ids, num_train):
+            
+            selected_var = []
+            lvl_subs = []
+            for item in combi:
+                selected_var.append(item)
+                lvl_subs.append(level_sub(item))
+            # (first,second,third) = combi
+            # lvl_sublvl1 = level_sub(first)
+            # lvl_sublvl2 = level_sub(second)
+            # lvl_sublvl3 = level_sub(third)
+            
+            boundB = {1,3}
+            # B levels (sublevels) present in this combination
+            covered_subs = set()
+            # A levels (levels) counts in this triple
+            covered_levels = []
+            for lvl_sub in lvl_subs:
+                covered_subs.add(lvl_sub[1])
+                covered_levels.append(lvl_sub[0])
+                       
+            from collections import Counter
+            level_counts = Counter(covered_levels)
+            balance = num_train/2 if num_train%2 == 0 else (num_train+1)/2
+
+            if (boundB.issubset(covered_subs)) and max(level_counts.values()) <= balance: 
+                # covers endpoints b1,b3
+                # A levels is not dominant on 1 A level
+                # train conditions satisfy, take the rest as test variations
+                all_numbers = {1, 2, 3, 4, 5, 6}
+                remaining = all_numbers - set(combi)
+                out.append(list(remaining))
+
         return out
-    
-    pairs = valid_pairs(numbers)
-    
-    # iterate through every possible test combination
-    for i,test in enumerate(pairs):
+    valid = valid_tri_combi(numbers)
+        
+    # iterate through every valid test combination
+    for i,test in enumerate(valid):
         case_id = []
         train_var = []
         test_var = []
@@ -63,9 +81,9 @@ def separate_train_test_val(variant_list,path):
         })
         train_test_df.to_csv(f'{path}/splits/{i}_train_test.csv',index=True)
         
-        # select repetition for train and validation for 4 samples
-        selected_reps = np.zeros((4,len(train_var)))
-        for j in range(4):
+        # select 1 repetition out of 4 for validation
+        selected_reps = np.zeros((num_monte,len(train_var)))
+        for j in range(num_monte):
             train_reps = []
             val_reps = []
             case_id = []
@@ -77,7 +95,7 @@ def separate_train_test_val(variant_list,path):
                 if j != 0:
                     while np.isin(val_rep_num,selected_reps[:,k]):
                         val_rep_num = np.random.randint(1, 4 + 1)
-                        # selected_reps[j,k] = val_rep_num
+
                 selected_reps[j,k] = val_rep_num
                 for rep in range(1, 4 + 1):
                     rep_path = f"{var}/processed/UBORecord{rep}Log.csv"
@@ -95,7 +113,10 @@ def separate_train_test_val(variant_list,path):
                 "split": case_id
             })
             train_val_df.to_csv(f'{path}/splits/{i}_train_val_{j}.csv', index=False)
-            
+
+        all_numbers = {1, 2, 3, 4, 5, 6}
+        remaining = all_numbers - set(test)
+        print("Train Var: ",remaining)
         print("Test Var: ",test)
         for sample,val_rep in enumerate(selected_reps.astype('int')):
             print_text = f"Sample {sample}: "

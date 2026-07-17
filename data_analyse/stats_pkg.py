@@ -62,8 +62,8 @@ def remove_outliers_iqr(ori_data, multiplier=1.5):
     for dim in range(data.shape[1]):
         cur_dim_data = data[:,dim]
         
-        q1 = np.percentile(cur_dim_data, 25)
-        q3 = np.percentile(cur_dim_data, 75)
+        q1 = np.percentile(cur_dim_data, 25,method='midpoint')
+        q3 = np.percentile(cur_dim_data, 75,method='midpoint')
         iqr = q3 - q1
         
         lower_bound = q1 - multiplier * iqr
@@ -76,5 +76,17 @@ def remove_outliers_iqr(ori_data, multiplier=1.5):
     total_mask = np.array(masks).T
     final_mask = np.all(total_mask, axis=1)
     cleaned_data = data[final_mask,:]
+    outliers = data[~final_mask,:]
 
-    return cleaned_data, outliers, mask
+    return cleaned_data, outliers, final_mask
+
+def assign_stars(df,p_column):
+    df["stars"] = np.select(
+        [
+            df[p_column] < 0.001,
+            df[p_column] < 0.01,
+            df[p_column] < 0.05,
+        ],
+        ["***", "**", "*"],
+        default=""
+    )

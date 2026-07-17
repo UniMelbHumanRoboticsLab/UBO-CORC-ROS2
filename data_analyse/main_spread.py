@@ -79,10 +79,14 @@ for p in range(1,4):
         time_list_all.append(time_list_sub)
         tau_list_all.append(tau_list_sub)
 
-    
-    fig,axs = plot_multi_source_spread(x_list=time_list_all,data_list=tau_list_all,dim=6*14,labels=tau,xtype="t",datatype="tau",split=4,sharex=False,legend=True,fig_label=f"p{p}")
+    if p==1:
+        figwidth=7
+    else:
+        figwidth=(18.333333-7)/2
+    fig,axs = plot_multi_source_spread(x_list=time_list_all,data_list=tau_list_all,dim=6*14,labels=tau,xtype="time(s)",figwidth=figwidth,datatype="tau",split=4,sharex=False,legend=True,fig_label=f"p{p}")
     interactive_spread(fig,axs)
-    plt.show()
+    fig.savefig(f'figures/p{p}.svg')
+# plt.show()
 
     # assert 0 
 

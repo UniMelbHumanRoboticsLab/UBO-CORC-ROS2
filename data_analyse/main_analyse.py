@@ -4,26 +4,30 @@ import sys,os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from data_process.file_util_pkg import load_npy
 from data_visual.plot_pkg import plot_violins
+from stats_pkg import remove_outliers_iqr
 from metrics_pkg import q
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 all_subject = True
-plot_per_patient = True
+plot_per_patient = False
 
 avg_norm_labels = []
 tau_diff_labels = []
 coverage_labels = []
 for i in ["Seen","Unseen"]:
-    for j in ["TPGMM","LUT","Therapist"]:
-        avg_norm_labels.append(r"Average Norm $\epsilon$"+f"\n({j}-{i})")
-        tau_diff_labels.append(r"Norm $\Delta\tau_{peak}$"+f"\n({j}-{i})")
-        if j != "Therapist":
-            coverage_labels.append(r"Coverage %"+f"\n({j}-{i})")
+    for j in ["TPGMM","LUT","THERAPIST"]:
+        avg_norm_labels.append(j)
+        tau_diff_labels.append(j)
+        if j != "THERAPIST":
+            coverage_labels.append(j)
          
-cases = ["recon","recon_lut","gt",]
-
+methods = ["recon","recon_lut","gt",]
+subjects = [
+    [11,12,13,14,15,16,17,18,19,20,21,22,23,24],
+    [11,12,13,14,15,16,17,18,19,20,21,22,23,24],
+    [11,12,13,14,15,16,17,18,19,20,21,22,23,24]]
 if all_subject:
     """
     Every subject
@@ -39,7 +43,7 @@ if all_subject:
             sm_num=4
         
         all_val_avg_norm_error,all_val_norm_diff_tau,all_val_coverage,all_test_avg_norm_error,all_test_norm_diff_tau,all_test_coverage = {},{},{},{},{},{}
-        for i in cases:
+        for i in methods:
             all_val_avg_norm_error[i] = []
             all_val_norm_diff_tau[i] = []
             all_val_coverage[i] = []
@@ -47,11 +51,8 @@ if all_subject:
             all_test_norm_diff_tau[i] = []
             all_test_coverage[i] = []
         
-        all_avg_norm_subject_spread = []
-        all_norm_diff_tau_subject_spread = []
-        all_coverage_subject_spread = []
         num_of_gaussians = []
-        for sub in range(11,25):
+        for sub in subjects[p-1]:
             session_data = {
                 "exp_id":"exp1_trained2",
                 "patient_id":f"p{p}",
@@ -67,148 +68,99 @@ if all_subject:
       
             test_samples = load_npy(f"{subject_path}/repro/test_processed.npy")
             test_samples_df = pd.DataFrame(test_samples)
-            
-            all_avg_norm_per_subject = []
-            all_norm_diff_tau_per_subject = []
-            all_coverage_per_subject = []
-            for i in cases:
-                val_avg_norm_error = val_samples_df[f'{i}_avg_norm_error'].tolist()
-                all_val_avg_norm_error[i].append(val_avg_norm_error)
-                all_avg_norm_per_subject.append(np.array(val_avg_norm_error))
-                val_norm_diff_tau = val_samples_df[f'{i}_norm_diff_tau'].tolist()
-                all_val_norm_diff_tau[i].append(val_norm_diff_tau)
-                all_norm_diff_tau_per_subject.append(np.array(val_norm_diff_tau))
-                if i != "gt":
-                    val_coverage = val_samples_df[f'{i}_coverage'].tolist()
-                    all_val_coverage[i].append(val_coverage)
-                    all_coverage_per_subject.append(np.array(val_coverage))
-                
-            for i in cases:
-                test_avg_norm_error = test_samples_df[f'{i}_avg_norm_error'].tolist()
-                all_test_avg_norm_error[i].append(test_avg_norm_error)
-                all_avg_norm_per_subject.append(np.array(test_avg_norm_error))
-                test_norm_diff_tau = test_samples_df[f'{i}_norm_diff_tau'].tolist()
-                all_test_norm_diff_tau[i].append(test_norm_diff_tau)
-                all_norm_diff_tau_per_subject.append(np.array(test_norm_diff_tau))
-                
-                if i != "gt":
-                    test_coverage = test_samples_df[f'{i}_coverage'].tolist()
-                    all_test_coverage[i].append(test_coverage)
-                    all_coverage_per_subject.append(np.array(test_coverage))
 
-            num_of_gaussians.append(val_samples_df['tpgmm_param'].values[0::4].tolist())
+            if len(val_samples) > 0:
+                for i in methods:
+                    # all combinations
+                    val_avg_norm_error = np.array(val_samples_df[f'{i}_avg_norm_error_mean'].tolist())
+                    val_norm_diff_tau = np.array(val_samples_df[f'{i}_norm_diff_tau_mean'].tolist())
+                    # average over combination
+                    all_val_avg_norm_error[i].append(np.mean(remove_outliers_iqr(val_avg_norm_error)[0]))
+                    all_val_norm_diff_tau[i].append(np.mean(remove_outliers_iqr(val_norm_diff_tau)[0]))
+                    if i != "gt":
+                        val_coverage = np.array(val_samples_df[f'{i}_coverage_mean'].tolist())
+                        all_val_coverage[i].append(np.mean(remove_outliers_iqr(val_coverage)[0]))
+                num_of_gaussians.append(val_samples_df['tpgmm_param'].values[0::4].tolist())
+            if len(test_samples) > 0:
+                for i in methods:
+                    # all combinations
+                    test_avg_norm_error = np.array(test_samples_df[f'{i}_avg_norm_error_mean'].tolist())
+                    test_norm_diff_tau = np.array(test_samples_df[f'{i}_norm_diff_tau_mean'].tolist())
+                    # average over combination
+                    all_test_avg_norm_error[i].append(np.mean(remove_outliers_iqr(test_avg_norm_error)[0]))
+                    all_test_norm_diff_tau[i].append(np.mean(remove_outliers_iqr(test_norm_diff_tau)[0]))
                     
-            all_avg_norm_subject_spread.append(all_avg_norm_per_subject)
-            all_norm_diff_tau_subject_spread.append(all_norm_diff_tau_per_subject)
-            all_coverage_subject_spread.append(all_coverage_per_subject)
-        
-        """plot all subject as a spread"""
-        if plot_per_patient:
-            plot_violins(
-                data_list=all_avg_norm_subject_spread,
-                title=f"p{p} Normalized Average Error Spread.",
-                axis_num = 14,
-                x_labels=avg_norm_labels,
-                axis_title=[f"sub{x}" for x in range(11,25)],
-                split=2
-                )
-            plot_violins(
-                data_list=all_norm_diff_tau_subject_spread,
-                title=f"p{p} Normalized "+r"$\Delta\tau_{peak}$ "+"Spread",
-                axis_num = 14,
-                x_labels=tau_diff_labels,
-                axis_title=[f"sub{x}" for x in range(11,25)],
-                split=2)
-            plot_violins(
-                data_list=all_coverage_subject_spread,
-                title=f"p{p} Coverage Spread.",
-                axis_num = 14,
-                x_labels=coverage_labels,
-                axis_title=[f"sub{x}" for x in range(11,25)],
-                split=2)
-        
-        all_avg_norm_error = []
-        all_norm_diff_tau = []
-        all_coverage = []
-        for i in cases:
+                    if i != "gt":
+                        test_coverage = np.array(test_samples_df[f'{i}_coverage_mean'].tolist())
+                        all_test_coverage[i].append(np.mean(remove_outliers_iqr(test_coverage)[0]))
+
+        all_avg_norm_error_per_patient = []
+        all_norm_diff_tau_per_patient = []
+        all_coverage_per_patient = []
+        for i in methods:
             all_val_avg_norm_error[i] = np.vstack(all_val_avg_norm_error[i])
-            all_avg_norm_error.append(all_val_avg_norm_error[i])
+            all_avg_norm_error_per_patient.append(all_val_avg_norm_error[i])
             all_val_norm_diff_tau[i] = np.vstack(all_val_norm_diff_tau[i])
-            all_norm_diff_tau.append(all_val_norm_diff_tau[i])
+            all_norm_diff_tau_per_patient.append(all_val_norm_diff_tau[i])
             if i != "gt":
                 all_val_coverage[i] = np.vstack(all_val_coverage[i])
-                all_coverage.append(all_val_coverage[i])
+                all_coverage_per_patient.append(all_val_coverage[i])
 
-        for i in cases:
+        for i in methods:
             all_test_avg_norm_error[i] = np.vstack(all_test_avg_norm_error[i])
-            all_avg_norm_error.append(all_test_avg_norm_error[i])
+            all_avg_norm_error_per_patient.append(all_test_avg_norm_error[i])
             all_test_norm_diff_tau[i] = np.vstack(all_test_norm_diff_tau[i])
-            all_norm_diff_tau.append(all_test_norm_diff_tau[i])
+            all_norm_diff_tau_per_patient.append(all_test_norm_diff_tau[i])
         
             if i != "gt":
                 all_test_coverage[i] = np.vstack(all_test_coverage[i])
-                all_coverage.append(all_test_coverage[i])
-       
-        """plot all subject as a whole"""
-        if plot_per_patient:
-            plot_violins(
-                title=fr"p{p} Normalized Average Error Dist.",
-                data_list=[all_avg_norm_error],
-                axis_num = 1,
-                x_labels=avg_norm_labels,
-                axis_title=["All Joints"],
-                split=2)
-            plot_violins(
-                title=f"p{p} Normalized "+r"$\Delta\tau_{peak}$ "+"Dist",
-                data_list=[all_norm_diff_tau],
-                axis_num = 1,
-                x_labels=tau_diff_labels,
-                axis_title=["All Joints"],
-                split=2)
-            plot_violins(
-                title=fr"p{p} Coverage Dist",
-                data_list=[all_coverage],
-                axis_num = 1,
-                x_labels=coverage_labels,
-                axis_title=["All Joints"],
-                split=2)
-            plt.show()
+                all_coverage_per_patient.append(all_test_coverage[i])
             
-        all_patients_error.append(all_avg_norm_error)
-        all_patients_tau_diff.append(all_norm_diff_tau)
-        all_patients_coverage.append(all_coverage)
+        all_patients_error.append(all_avg_norm_error_per_patient)
+        all_patients_tau_diff.append(all_norm_diff_tau_per_patient)
+        all_patients_coverage.append(all_coverage_per_patient)
         num_of_gaussians = np.hstack(num_of_gaussians)
         all_patients_gaussian.append([num_of_gaussians])
-
+        
+    # lump all personas into 1
+    overall_patients_error = np.hstack(all_patients_error)
+    overall_patients_error = [arr for arr in overall_patients_error]
+    all_patients_error.insert(0,overall_patients_error)
+    
+    overall_patients_tau_diff = np.hstack(all_patients_tau_diff)
+    overall_patients_tau_diff = [arr for arr in overall_patients_tau_diff]
+    all_patients_tau_diff.insert(0,overall_patients_tau_diff)
+    
+    overall_patients_coverage = np.hstack(all_patients_coverage)
+    overall_patients_coverage = [arr for arr in overall_patients_coverage]
+    all_patients_coverage.insert(0,overall_patients_coverage)
+    
+    # plot 
     plot_violins(
-        title="Patient Normalized Average Error Dist",
+        title="Normalized Average Error "+r"$\epsilon$",
         data_list=all_patients_error,
-        axis_num = 3,
+        axis_num = 4,
         x_labels=avg_norm_labels,
-        axis_title=["p1","p2","p3"],
-        split=2)
+        axis_title=["All Personas","Persona 1","Persona 2","Persona 3"],
+        split=2,
+        figwidth=7,
+        remove_outlier=False)
     plot_violins(
-        title=f"Patient Normalized "+r"$\Delta\tau_{peak}$ "+"Dist",
+        title="Normalized "+r"$\Delta\tau_{peak}$",
         data_list=all_patients_tau_diff,
-        axis_num = 3,
+        axis_num = 4,
         x_labels=tau_diff_labels,
-        axis_title=["p1","p2","p3"],
-        split=2)
+        axis_title=["All Personas","Persona 1","Persona 2","Persona 3"],
+        split=2,figwidth=6.5,
+        remove_outlier=False)
     plot_violins(
-        title="Patient Coverage Dist",
+        title="Coverage "+r"$C~(\%)$",
         data_list=all_patients_coverage,
-        axis_num = 3,
+        axis_num = 4,
         x_labels=coverage_labels,
-        axis_title=["p1","p2","p3"],
-        split=2)
-    plot_violins(
-        title="Patient Gaussian Kernel Distribution",
-        data_list=all_patients_gaussian,
-        axis_num = 3,
-        x_labels=[r"Num of Gaussians"],
-        axis_title=["p1","p2","p3"],
-        remove_outlier=False,
-        split=2)
+        axis_title=["All Personas","Persona 1","Persona 2","Persona 3"],
+        split=2,figwidth=4.83,
+        remove_outlier=False)
     plt.show()
 else:
     """

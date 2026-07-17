@@ -12,3 +12,5 @@ robotics-toolbox-python/
 *.nbi
 lfd/tpgmm/tutorial_data/
 test_venv/
+data_analyse/figures
+
