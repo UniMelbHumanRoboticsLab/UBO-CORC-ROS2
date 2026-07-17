@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-# plt.rcParams.update({'font.size': 13})
-# mpl.rcParams["text.usetex"] = True
+fontsize = 8
+plt.rcParams.update({'font.size': fontsize})
+import warnings
+warnings.filterwarnings(action="ignore",category=UserWarning)
 from matplotlib.patches import Patch, Rectangle
 import mplcursors
 from matplotlib.lines import Line2D
@@ -17,8 +19,15 @@ from data_analyse.stats_pkg import compute_central_tendency,remove_outliers_iqr,
 """TEX functions"""
 def get_tex_dim_labels(datatype):
     def tex_label(datatype: str, dim: str) -> str:
-        if datatype == "tau":
-            return fr"$\tau_{{{dim}}}$"
+        # helper: make two-line subscripts like trunk / int-exteral-rotate
+        def format_dim(d: str) -> str:
+            if "," in d:
+                a, b = [x.strip() for x in d.split(",", 1)]
+                return fr"\substack{{{a} \\ {b}}}"
+            return d
+
+        if "tau" in datatype:
+            return fr"$\tau_{{{format_dim(dim)}}}~(Nm)$"
     
         base, sub = datatype.split("_", 1)
     
@@ -31,27 +40,43 @@ def get_tex_dim_labels(datatype):
         else:
             base_tex = base
     
-        return fr"${base_tex}_{{{dim}}}$"
+        return fr"${base_tex}_{{{format_dim(dim)}}}$"
+
     dim_labels = [tex_label(datatype, i) for i in [
-        r'tru,int-ext-rot', r'tru,abd-adduct', r'tru,flex-extend',
-        r'clav,dep-elev', r'clav,prot-retract',
-        r'should,flex-extend', r'should,abd-adduct', r'should,int-ext-rot',
-        r'elb,flex-extend', r'elb,pro-supinate']]
+        r'trunk,int-exteral-rotate', r'trunk,abduct-adduct', r'trunk,flex-extend',
+        r'clavicle,depress-elevate', r'clavicle,protract-retract',
+        r'shoulder,flex-extend', r'shoulder,abduct-adduct', r'shoulder,int-external-rotate',
+        r'elbow,flex-extend', r'elbow,pronate-supinate']]
     
     return dim_labels
-""" get muliti color """
-def get_n_colors(n_colors:int,split=4,color_set="Set1"):
-    cmap = plt.colormaps[color_set]  
-    if n_colors % split == 0 and n_colors/split >= 10:
-        cmap = plt.colormaps['tab10']  
-        
-    # If n_colors is a multiple of split, get n/split colors and repeat each split times
-    if n_colors > 0 and n_colors % split == 0 and n_colors/split > 1:
-        base_n = n_colors // split
-        base_colors = [cmap(i) for i in range(base_n)]
-        colors = [color for color in base_colors for _ in range(split)]
+""" get multi color """
+def get_n_colors(n_colors: int, split=4, color_set="Set1", shuffle=None):
+    import random
+    import seaborn as sns
+
+    # Determine how many base colors we need
+    if n_colors > 0 and n_colors % split == 0 and n_colors // split > 1:
+        base_count = n_colors // split
     else:
-        colors = [cmap(i / (n_colors)) for i in range(n_colors)]
+        base_count = n_colors
+
+    palette = list(sns.color_palette(color_set))
+    
+    # shuffle is treated as an int seed
+    if isinstance(shuffle, int) and shuffle != 0:
+        rng = random.Random(shuffle)
+        rng.shuffle(palette)
+    elif isinstance(shuffle, bool) and shuffle:
+        palette = palette[::-1]
+        
+    palette = palette[0:base_count]
+    print(palette[0])
+    # Repeat each base color `split` times when applicable
+    if n_colors > 0 and n_colors % split == 0 and n_colors // split > 1:
+        colors = [c for c in palette for _ in range(split)]
+    else:
+        colors = palette
+
     return colors
 #================HELPER FUNCTIONS END================================
 
@@ -59,7 +84,7 @@ def get_n_colors(n_colors:int,split=4,color_set="Set1"):
 """plot each axis as 1 dimension from multiple sources"""
 def plot_multi_dim(x_list:list,data_list:list,
                            dim:int,labels:list,xtype:str,datatype:str,
-                           split=4,color_set="Set1",
+                           split=4,color_set="Set1",shuffle=False,
                            sharex:bool=True,semilogx:bool=False,legend:bool=True,
                            fig_label:str="Take1",
                            show_stats:bool=False,show_zero_cross:bool=False,
@@ -68,13 +93,14 @@ def plot_multi_dim(x_list:list,data_list:list,
     if "rad" in datatype:
         temp = [np.rad2deg(data) for data in data_list]
         data_list = temp
-    colors = get_n_colors(len(x_list),split,color_set)
+    colors = get_n_colors(len(x_list),split,color_set,shuffle)
+
     # init fig, axes
     if prev_fig is not None and prev_ax is not None:
         fig = prev_fig
         axs = prev_ax
     else:
-        fig = plt.figure(figsize=figsize,num=fig_label,tight_layout=True)
+        fig = plt.figure(figsize=figsize,num=fig_label,layout="constrained")
         fig.canvas.manager.window.wm_geometry(loc)
         axs = []
     
@@ -97,20 +123,23 @@ def plot_multi_dim(x_list:list,data_list:list,
         else:
             dim_labels = []
         
-        annotations = []
         for i in range(dim):
             if dim >= 3 and datatype != "spread":
-                axs.append(fig.add_subplot(int(np.ceil(dim/3)),3,i+1))
+                axs.append(fig.add_subplot(int(np.ceil(dim/4)),4,i+1))
             else:
                 axs.append(fig.add_subplot(1,dim,i+1))
-            axs[i].set_xlabel(f'{xtype}',fontsize=10)
-            axs[i].set_ylabel(f'{dim_labels[i]}',fontsize=10)
-            axs[i].tick_params(axis="both", which="major", labelsize=10)
+            if i>=8:
+                axs[i].set_xlabel(f'{xtype}',fontsize=fontsize)
+            else:
+                axs[i].xaxis.set_visible(False)
+            axs[i].set_ylabel(f'{dim_labels[i]}',fontsize=fontsize)
+            axs[i].tick_params(axis="both", which="minor", labelsize=fontsize)
             axs[i].grid(True)
             axs[i].annotation = axs[i].annotate('', xy=(0, 0), xytext=(10, 10),
                                      textcoords='offset points',
                                      bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.7),
                                      arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0'))
+            axs[i].set_facecolor('xkcd:white')
             # # Store annotation object
             axs[i].annotation.set_visible(False)
             
@@ -147,10 +176,10 @@ def plot_multi_dim(x_list:list,data_list:list,
         if data_array_i.shape[1] != dim:
             data_array_i = np.column_stack([data_array_i for i in range(dim)])
             
-        if "Recon" in label:
-            linewidth = 3
+        if "TPGMM" in label or "LUT" in label :
+            linewidth = 1.5
         else:
-            linewidth = 2
+            linewidth = 1
             
         alpha = 1
         for j,ax in enumerate(axs):
@@ -169,12 +198,13 @@ def plot_multi_dim(x_list:list,data_list:list,
         # sanity check for zero crossings cuz why not
         if show_zero_cross:
             plot_velocity_zero_crossings(x_list[0], data_list[0][:, j], ax)
-    
-    if legend:
-        handles, labels = axs[0].get_legend_handles_labels()
-        fig.legend(handles, labels,loc='lower right', ncol=3, draggable=True)
 
-    plt.tight_layout()
+    fig.set_constrained_layout_pads(
+        w_pad=0.05,   # padding around axes (inches)
+        h_pad=0.05,
+        wspace=0.03,  # space between subplot groups (fraction)
+        hspace=0.0
+    )
     return fig,axs
 """ plot zero velocity crossings for 1D velocity data"""
 def plot_velocity_zero_crossings(time, velocity, ax):
@@ -215,86 +245,8 @@ def plot_velocity_zero_crossings(time, velocity, ax):
     
     for t_cross in times:
         ax.axvline(t_cross, color='red', linestyle='-', alpha=0.7)
-""" hide / show plot interactively (click to hide/show) """
-def interactive_plot(fig, axs):
-    for j,ax in enumerate(axs):
-        # crs = mplcursors.cursor(ax,hover=2)
-        # crs.connect("add", lambda sel: sel.annotation.set_text(f'Point {sel.target[0]:.4f},{sel.target[1]:.4f}'))
-        
-        cursor1 = mplcursors.cursor(ax,multiple=True)
-        cursor1.connect("add", lambda sel: sel.annotation.draggable(True))
-        
-        cursor2 = mplcursors.cursor(ax,hover=mplcursors.HoverMode.Transient)
-        cursor2.connect("add", lambda sel: sel.annotation.set_backgroundcolor('pink'))
-        
-    handles, labels = axs[0].get_legend_handles_labels()
-    leg = fig.legend(handles, labels, loc='lower right', ncol=3, draggable=True)
-
-    # Map legend handles to original line artists across all axes
-    legend_lines = {}
-    for leghandle, leglabel in zip(leg.legend_handles, labels):
-        sample_id = leglabel.split(".")
-        leghandle.set_picker(5)  # Works for both Line2D and Patch objects
-        legend_lines[leghandle] = {
-            "art":[],
-            "group_id":sample_id[0],
-            "leglabel":leglabel
-            }
-        for ax in axs:
-            # Check lines
-            for line in ax.get_lines():
-                if line.get_label() == leglabel:
-                    legend_lines[leghandle]["art"].append(line)
-            # Check patches (e.g., bar plots)
-            for patch in ax.patches:
-                if patch.get_label() == leglabel:
-                    legend_lines[leghandle]["art"].append(patch)
-            # Check collections (e.g., fill_between creates PolyCollection)
-            for coll in ax.collections:
-                if coll.get_label() == leglabel:
-                    legend_lines[leghandle]["art"].append(coll)
-
-    def on_pick(event):
-        line = event.artist
-        if line in legend_lines:
-            leglabel = legend_lines[line]["leglabel"]
-            group_id = legend_lines[line]["group_id"]
-            origlines = legend_lines[line]["art"]
-            vis = not origlines[0].get_visible() if origlines else True
-            if "central" in leglabel:
-                #hide/show all items for that variations if pressed mean or CI
-                for (leghandle,leghandle_dict) in legend_lines.items():
-                    if leghandle_dict["group_id"] == group_id:
-                        origlines = leghandle_dict["art"]
-                        for origline in origlines:
-                            origline.set_visible(vis)
-                        leghandle.set_alpha(1.0 if vis else 0)
-            else:
-                # hide/show individual plots
-                for origline in origlines:
-                    origline.set_visible(vis)
-                line.set_alpha(1.0 if vis else 0)
-                
-        fig.canvas.draw()
-    fig.canvas.mpl_connect('pick_event', on_pick)
-        
-    def on_click(event):
-        # Right-click (button 3) to hide all
-        if event.button == 3 and event.inaxes is None:
-            for leghandle, origlines in legend_lines.items():
-                for origline in origlines["art"]:
-                    origline.set_visible(False)
-                leghandle.set_alpha(0)
-        fig.canvas.draw()
-    fig.canvas.mpl_connect('button_press_event', on_click)
-    
-    def on_resize(event):
-        fig.tight_layout()
-        fig.canvas.draw()
-    fig.canvas.mpl_connect('resize_event', on_resize)
-    return leg
 """ plot confidence interval with mean and std for n-lists list (each element in the list is a list of  2d arrays)"""
-def plot_stats(time_list:list, data_list:list, fig=None,axs=None,labels:list=[],legend=True,relimit=False,dist="gaussian",split=4,datatype="q"):
+def plot_stats(time_list:list, data_list:list, fig=None,axs=None,labels:list=[],legend=True,relimit=False,dist="gaussian",split=4,datatype="q",color_set="Set1"):
     if "rad" in datatype:
         temp = [np.rad2deg(data) for data in data_list]
         data_list = temp
@@ -306,12 +258,12 @@ def plot_stats(time_list:list, data_list:list, fig=None,axs=None,labels:list=[],
             cur_min,cur_max = np.min(temp_arr),np.max(temp_arr)
             if cur_min < limits[0]:
                 limits[0] = cur_min
-            if cur_max > limits[0]:
+            if cur_max > limits[1]:
                 limits[1] = cur_max
         for i, ax in enumerate(axs):
             axs[i].set_ylim(limits[0]-0.1*abs(limits[0]),limits[1]+0.1*abs(limits[1]))
 
-    colors = get_n_colors(len(data_list),split=1)
+    colors = get_n_colors(len(data_list),split=1,color_set=color_set)
     for x,data,color,label in zip(time_list,data_list,colors,labels):
         time = x[0]
         if dist == "gaussian":
@@ -345,7 +297,93 @@ def plot_stats(time_list:list, data_list:list, fig=None,axs=None,labels:list=[],
                                 alpha=0.3, color=color, label=f'{label}.Bound')
     if legend:
         handles, labels = axs[0].get_legend_handles_labels()
-        fig.legend(handles, labels,loc='lower right', ncol=3, draggable=True)
+        fig.legend(handles, labels, loc='right', ncol=1, draggable=True,frameon=True,
+                fontsize='small',
+                markerscale=1.5,
+                scatterpoints=1)
+""" hide / show plot interactively (click to hide/show) """
+def interactive_plot(fig, axs):
+    for j,ax in enumerate(axs):
+        # crs = mplcursors.cursor(ax,hover=2)
+        # crs.connect("add", lambda sel: sel.annotation.set_text(f'Point {sel.target[0]:.4f},{sel.target[1]:.4f}'))
+        
+        cursor1 = mplcursors.cursor(ax,multiple=True)
+        cursor1.connect("add", lambda sel: sel.annotation.draggable(True))
+        
+        cursor2 = mplcursors.cursor(ax,hover=mplcursors.HoverMode.Transient)
+        cursor2.connect("add", lambda sel: sel.annotation.set_backgroundcolor('pink'))
+        
+    handles, labels = axs[0].get_legend_handles_labels()
+    leg = fig.legend(handles, labels, loc='right', ncol=1, draggable=True,frameon=True,
+            fontsize='small',
+            markerscale=1.5,
+            scatterpoints=1)
+
+    # Map legend handles to original line artists across all axes
+    legend_lines = {}
+    for leghandle, leglabel in zip(leg.legend_handles, labels):
+        sample_id = leglabel.split(".")
+        leghandle.set_picker(5)  # Works for both Line2D and Patch objects
+        legend_lines[leghandle] = {
+            "art":[],
+            "group_id":sample_id[0],
+            "leglabel":leglabel
+            }
+        for ax in axs:
+            # Check lines
+            for line in ax.get_lines():
+                if line.get_label() == leglabel:
+                    legend_lines[leghandle]["art"].append(line)
+            # Check patches (e.g., bar plots)
+            for patch in ax.patches:
+                if patch.get_label() == leglabel:
+                    legend_lines[leghandle]["art"].append(patch)
+            # Check collections (e.g., fill_between creates PolyCollection)
+            for coll in ax.collections:
+                if coll.get_label() == leglabel:
+                    legend_lines[leghandle]["art"].append(coll)
+
+    def on_pick(event):
+        fig = event.canvas.figure
+        line = event.artist
+        if line in legend_lines:
+            leglabel = legend_lines[line]["leglabel"]
+            group_id = legend_lines[line]["group_id"]
+            origlines = legend_lines[line]["art"]
+            vis = not origlines[0].get_visible() if origlines else True
+            if "central" in leglabel:
+                #hide/show all items for that variations if pressed mean or CI
+                for (leghandle,leghandle_dict) in legend_lines.items():
+                    if leghandle_dict["group_id"] == group_id:
+                        origlines = leghandle_dict["art"]
+                        for origline in origlines:
+                            origline.set_visible(vis)
+                        leghandle.set_alpha(1.0 if vis else 0)
+            else:
+                # hide/show individual plots
+                for origline in origlines:
+                    origline.set_visible(vis)
+                line.set_alpha(1.0 if vis else 0)
+        fig.canvas.draw_idle()
+    fig.canvas.mpl_connect('pick_event', on_pick)
+        
+    def on_click(event):
+        fig = event.canvas.figure
+        # Right-click (button 3) to hide all
+        if event.button == 3 and event.inaxes is None:
+            for leghandle, origlines in legend_lines.items():
+                for origline in origlines["art"]:
+                    origline.set_visible(False)
+                leghandle.set_alpha(0)
+        fig.canvas.draw_idle()
+    fig.canvas.mpl_connect('button_press_event', on_click)
+    
+    # def on_resize(event):
+    #     fig = event.canvas.figure
+    #     fig.tight_layout(rect=[0, 0, 1, 1]) 
+    #     fig.canvas.draw_idle()
+    # fig.canvas.mpl_connect('resize_event', on_resize)
+    return leg
 def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_type="tau",fig_label="Train",plot=False,stats=True):
     # isolate each variation
     unique_var_id = []
@@ -385,12 +423,14 @@ def split_plot_all(var_id_list,time_list,data_list,label_list,rep_split=4,data_t
             )
         interactive_plot(fig,ax)
     return time_list_per_var,data_list_per_var,unique_var_id
+
+
 """ plot each axis as 1 source for spread"""
 def plot_multi_source_spread(x_list:list,data_list:list,
                            dim:int,labels:list,xtype:str,datatype:str,
                            split=4,shuffle=False,
                            sharex:bool=True,semilogx:bool=False,legend:bool=True,
-                           fig_label:str="Take1",
+                           fig_label:str="Take1",figwidth=3,
                            show_stats:bool=False,show_zero_cross:bool=False,
                            prev_fig=None,prev_ax=None,loc="+2000+100",figsize=(45,25)):
     if "rad" in datatype:
@@ -404,34 +444,37 @@ def plot_multi_source_spread(x_list:list,data_list:list,
         fig = prev_fig
         axs = prev_ax
     else:
-        fig = plt.figure(num=fig_label,tight_layout=True)
+        fig = plt.figure(figsize=(figwidth*0.393701,14*0.393701),num=fig_label,layout="constrained")
         # fig = plt.figure(figsize=figsize,num=fig_label,tight_layout=True)
         fig.canvas.manager.window.wm_geometry(loc)
         
         axs = []
         sub_num = int(dim/6)
         var_labels = [f"var{i}" for i in range(1,7)]
-        sub_labels = [f"sub{i}" for i in range(11,11+sub_num)]
+        sub_labels = [f"s{i}" for i in range(11,11+sub_num)]
         for i in range(dim):
             j,k = int(i/6),i%6
             axs.append(fig.add_subplot(sub_num,6,i+1))
             axs[i].grid(True)
             if j == sub_num-1:
-                axs[i].set_xlabel(f'{xtype}',fontsize=10)
-                axs[i].tick_params(axis="both", which="major", labelsize=10)
+                if k == 3:
+                    axs[i].set_xlabel(f'{xtype}',fontsize=fontsize)
+                axs[i].tick_params(axis="both", which="major", labelsize=fontsize)
             else:
                 axs[i].xaxis.set_visible(False)
             if j == 0:
-                axs[i].set_title(f'{var_labels[k]}',fontsize=10)
-            if k == 0:
-                axs[i].set_ylabel(f'{sub_labels[j]}',fontsize=10)
+                axs[i].set_title(f'{var_labels[k]}',fontsize=fontsize)
+            if k == 0 and fig_label=="p1":
+                axs[i].set_ylabel(f'{sub_labels[j]}',fontsize=fontsize)
+            else:
+                axs[i].yaxis.set_visible(False)
             
     # plot actual data
     for i,(sub,x,data) in enumerate(zip([f"sub{i}" for i in range(11,11+sub_num)],x_list,data_list)):
         for j,(x_var,data_var) in enumerate(zip(x,data)):
             for dim in range(10):
                 for k,(x_rep,data_rep) in enumerate(zip(x_var,data_var)):
-                    linewidth = 2
+                    linewidth = 1
                     alpha = 1
                     if k == 0:
                         line, = axs[i*6+j].plot(x_rep, data_rep[:, dim], ls='-',color=colors[dim], label=labels[dim], alpha=alpha, linewidth=linewidth,picker=5)
@@ -439,14 +482,14 @@ def plot_multi_source_spread(x_list:list,data_list:list,
                         line, = axs[i*6+j].plot(x_rep, data_rep[:, dim], ls='-',color=colors[dim], alpha=alpha, linewidth=linewidth,picker=5)
                     line.line_id = f"{labels[dim]}.sub{i+11}.Var{j+1}.Rep{k+1}"
        
-    fig.tight_layout(rect=[0.01, 0, 0.96, 0.99]) 
+    # fig.tight_layout(rect=[0.00, 0, 1, 1]) 
     return fig,axs
 def interactive_spread(fig, axs):
     handles, labels = axs[0].get_legend_handles_labels()
-    leg = fig.legend(handles, labels, loc='right', ncol=1, draggable=True,frameon=True,
-            fontsize='small',
-            markerscale=1.5,
-            scatterpoints=1)
+    # leg = fig.legend(handles, labels, loc='right', ncol=1, draggable=True,frameon=True,
+    #         fontsize='small',
+    #         markerscale=1.5,
+    #         scatterpoints=1)
     
     for j,ax in enumerate(axs):
         # crs = mplcursors.cursor(ax,hover=2)
@@ -460,7 +503,8 @@ def interactive_spread(fig, axs):
     
     # Map legend handles to original artists across all axes
     legend_lines = {}
-    for leghandle, label in zip(leg.legend_handles, labels):
+    all_y = []
+    for leghandle, label in zip(handles, labels):
         leghandle.set_picker(5)  # Works for both Line2D and Patch objects
         legend_lines[leghandle] = {
             "art":[],
@@ -472,17 +516,17 @@ def interactive_spread(fig, axs):
                 line_id = line.line_id.split(".")
                 if line_id[0] == label:
                     legend_lines[leghandle]["art"].append(line)
-            # # Check patches (e.g., bar plots)
-            # for patch in ax.patches:
-            #     if patch.get_label() == label:
-            #         legend_lines[leghandle]["art"].append(patch)
-            # # Check collections (e.g., fill_between creates PolyCollection)
-            # for coll in ax.collections:
-            #     if coll.get_label() == label:
-            #         legend_lines[leghandle]["art"].append(coll)
-
+                    if label != r"$\tau_{shoulder,flex-extend}$":
+                        line.set_visible(False)
+                    else:
+                        all_y.append(line._y[:,np.newaxis])
+    all_y = np.vstack(all_y)
+    limits = np.min(all_y),np.max(all_y)
+    for ax in axs:
+        ax.set_ylim(limits[0]-0.3*abs(limits[0]),limits[1]+0.3*abs(limits[1])) 
     
     def on_pick(event):
+        fig = event.canvas.figure
         legline = event.artist
         if legline in legend_lines:
             label = legend_lines[legline]["label"]
@@ -502,26 +546,28 @@ def interactive_spread(fig, axs):
                 for ax in axs:
                     ax.set_ylim(limits[0]-0.3*abs(limits[0]),limits[1]+0.3*abs(limits[1]))
                 legline.set_alpha(1.0 if vis else 0.2)
-                fig.canvas.draw()
+                fig.canvas.draw_idle()
         elif isinstance(legline, Line2D) and legline.get_visible():
             print(legline.line_id)
     fig.canvas.mpl_connect('pick_event', on_pick)
         
     def on_click(event):
+        fig = event.canvas.figure
         # Right-click (button 3) to hide all
         if event.button == 3:
             for leghandle, origlines in legend_lines.items():
                 for origline in origlines["art"]:
                     origline.set_visible(False)
                 leghandle.set_alpha(0.2)
-            fig.canvas.draw()
+            fig.canvas.draw_idle()
     fig.canvas.mpl_connect('button_press_event', on_click)
     
-    def on_resize(event):
-        fig.tight_layout(rect=[0.01, 0, 0.96, 0.99]) 
-        fig.canvas.draw()
-    fig.canvas.mpl_connect('resize_event', on_resize)
-    return leg
+    # def on_resize(event):
+    #     fig = event.canvas.figure
+    #     fig.tight_layout(rect=[0.00, 0, 1, 1]) 
+    #     fig.canvas.draw_idle()
+    # fig.canvas.mpl_connect('resize_event', on_resize)
+    return 0
 #================2D DATA VISUALIZATION END===========================
 
 #================3D DATA VISUALIZATION===============================
@@ -659,7 +705,8 @@ def plot_violins(
     title="Metric Distribution",
     axis_title=["Categories"],
     ylabel="Values",
-    cut=2,
+    figwidth=7,
+    cut=0.5,
     bw_method='scott',
     show_central_tendency=True,
     show_whiskers=True,
@@ -708,21 +755,41 @@ def plot_violins(
     fig, ax : matplotlib figure and axis objects
     """       
     # Set colors
-    colors = get_n_colors(len(x_labels),split)
-    if split != 1:
-        temp_colors = colors[::split] + colors[1::split]
-        colors=temp_colors
+    if len(x_labels) == 6:
+        colors = [(1.0, 0.7686274509803922, 0.0),
+                  (1.0, 0.48627450980392156, 0.0),
+                  (0.00784313725490196, 0.24313725490196078, 1.0),
+                  
+                  (1.0, 0.7686274509803922, 0.0),
+                  (1.0, 0.48627450980392156, 0.0),
+                  (0.00784313725490196, 0.24313725490196078, 1.0),]
+    elif len(x_labels) == 4:
+        colors = [(1.0, 0.7686274509803922, 0.0),
+                  (1.0, 0.48627450980392156, 0.0),
+
+                  (1.0, 0.7686274509803922, 0.0),
+                            (1.0, 0.48627450980392156, 0.0)
+                            ]
+    else:
+        # colors = get_n_colors(len(x_list),split,color_set,shuffle)
+        colors = get_n_colors(len(x_labels),split)
+        
+        if split != 1:
+            temp_colors = colors[::split] + colors[1::split]
+            colors=temp_colors
     
     # Init figure
     if prev_fig == None and prev_axs == None:
-        fig = plt.figure(figsize=(30,10),num=title,tight_layout=True)
-        fig.suptitle(title, fontsize=14, fontweight='bold')
+        fig = plt.figure(figsize=(figwidth*0.393701,18*0.393701),num=title,layout="compressed")
+        
+        fig.suptitle(title, fontsize=fontsize,weight="bold")
+
         axs = []
         for i in range(axis_num):
-            if axis_num >= 4:
+            if axis_num > 4:
                 axs.append(fig.add_subplot(int(np.ceil(axis_num/4)),4,i+1))
             else:
-                axs.append(fig.add_subplot(1,axis_num,i+1))
+                axs.append(fig.add_subplot(int(np.ceil(axis_num/1)),1,i+1))
     else:
         fig = prev_fig
         axs = prev_axs
@@ -750,31 +817,46 @@ def plot_violins(
         # Customize plot
         ax.set_xticks(positions)
         
-        ax.set_title(ax_title, fontsize=12, fontweight='bold')
-        ax.set_ylabel(ylabel, fontsize=12, fontweight='bold')
+        if figwidth>=7:
+            ax.set_ylabel(ax_title, fontsize=fontsize)
         
+        limits = [np.min(all_data), np.max(all_data)]
         # Add padding to y-axis
-        ax.set_ylim(np.min(all_data) - data_range * 0.25, np.max(all_data) + data_range * 0.1)
+        ax.set_ylim(limits[0] - data_range * 0.25,limits[1] + data_range * 0.1)
         
         # Add grid
         ax.yaxis.grid(True, linestyle='--', alpha=0.3, zorder=0)
         ax.set_axisbelow(True)
-        
-        # plot the <1 boundary line
-        if "Coverage" in title:
-            ax.plot([positions[0]-0.5, positions[-1]+0.5], 
-                   [50, 50], 
-                   color='black',
-                   linestyle=':',
-                   linewidth=2, 
-                   zorder=7)
-        else:
-            ax.plot([positions[0]-0.5, positions[-1]+0.5], 
-                   [1, 1], 
-                   color='black',
-                   linestyle=':',
-                   linewidth=2, 
-                   zorder=7)
+
+        if len(x_labels)>1:
+            # fill the split area for different cases
+            mid_pos = int(len(x_labels)/split)
+            mid_pos_x = (positions[mid_pos]+positions[mid_pos-1])/2
+            ax.fill_betweenx(
+                [limits[0] - data_range * 0.25,limits[1] + data_range * 0.1], 
+                mid_pos_x, 
+                positions[-1]+0.5,
+                facecolor='grey', 
+                alpha=1, 
+                edgecolor='black', 
+                linewidth=1.5,
+                zorder=0,
+                label="Unseen Variations"
+            )
+            if "Coverage" in title:
+                ax.plot([positions[0]-0.5, positions[-1]+0.5], 
+                       [50, 50], 
+                       color='black',
+                       linestyle=':',
+                       linewidth=2, 
+                       zorder=4)
+            else:
+                ax.plot([positions[0]-0.5, positions[-1]+0.5], 
+                       [1, 1], 
+                       color='black',
+                       linestyle=':',
+                       linewidth=2, 
+                       zorder=4)
         
         # Draw each violin with manual KDE
         cur_x_labels = []
@@ -805,25 +887,29 @@ def plot_violins(
                 pos - density, 
                 pos + density,
                 facecolor=color, 
-                alpha=0.7, 
+                alpha=1, 
                 edgecolor='black', 
                 linewidth=1.5,
-                zorder=2
+                zorder=1
             )
             
             # Add median line
             if show_central_tendency:
-                median = np.median(data)
-                ax.plot([pos - 0.04, pos + 0.04], 
-                       [median, median], 
-                       color='orange', 
-                       linewidth=2, 
-                       zorder=5)
-                ax.scatter(pos, np.mean(data) , color='red', s=40, zorder=5, 
+                # median = np.median(data)
+                # ax.plot([pos - 0.04, pos + 0.04], 
+                #        [median, median], 
+                #        color='orange', 
+                #        linewidth=2, 
+                #        zorder=3)
+                ax.scatter(pos, np.mean(data) , color='white', s=20, zorder=3, 
                       marker='D', edgecolors='black', linewidths=1.5)
-                ax.scatter(pos, y_eval[max_density] , color='green', s=40, zorder=5, 
-                      marker='o', edgecolors='black', linewidths=1.5)
-                cur_x_labels.append(f"{x_labels[i]}\n"+fr"($\mu$ = {np.mean(data):.2f})"+f"\n(mode = {y_eval[max_density]:.2f})\n(median = {median:.2f})")
+                # ax.scatter(pos, y_eval[max_density] , color='green', s=40, zorder=3, 
+                #       marker='o', edgecolors='black', linewidths=1.5)
+                
+                tilde = r"$\~{{X}}$"
+                bar = r"$\bar{{X}}$"
+                hat = r"$\hat{{X}}$"
+                cur_x_labels.append(f"{bar}\n{np.mean(data):.2f}\n")#f"{x_labels[i]}\n"++f"{hat}:{y_eval[max_density]:.2f}\n"+f"{tilde}:{median:.2f}")
         
             # Add points arranged as horizontal histogram
             if show_points:
@@ -879,17 +965,17 @@ def plot_violins(
                 
                 # Main whisker line from min to max
                 ax.plot([pos, pos], [whisker_min, whisker_max], 
-                       color='black', linewidth=1.5, alpha=0.7, zorder=3,
+                       color='black', linewidth=1.5, alpha=0.7, zorder=2,
                        solid_capstyle='round')
                 
                 # Min cap
                 ax.plot([pos - 0.04, pos + 0.04], [whisker_min, whisker_min], 
-                       color='black', linewidth=2.5, zorder=3,
+                       color='black', linewidth=2.5, zorder=2,
                        solid_capstyle='round')
                 
                 # Max cap
                 ax.plot([pos - 0.04, pos + 0.04], [whisker_max, whisker_max], 
-                       color='black', linewidth=2.5, zorder=3,
+                       color='black', linewidth=2.5, zorder=2,
                        solid_capstyle='round')
                 
                 # Quartile patch
@@ -899,50 +985,67 @@ def plot_violins(
                     height=q3 - q1,                        # Box height (Q3 - Q1)
                     facecolor='black',          # Fill color
                     alpha=1,              # Transparencys
-                    zorder=4                               # Layer order
+                    zorder=2                               # Layer order
                 )
                 ax.add_patch(quartile_box)
     
 
         if show_central_tendency:
-            ax.set_xticklabels(cur_x_labels, rotation=0, ha='center')
+            ax.set_xticklabels(cur_x_labels, rotation=0, ha='center',fontsize=fontsize)
+            # for xtick, color in zip(ax.get_xticklabels(), colors):
+            #     xtick.set_color(color)
         else:
             ax.set_xticklabels(x_labels, rotation=0, ha='center')
 
     
     # Create legend
     legend_elements = []
-    # legend_elements = [
-    #     Patch(facecolor=colors[i], edgecolor='black', 
-    #           label=x_labels[i], alpha=0.7) 
-    #     for i in range(len(x_labels))
-    # ]
-    
+    handles, labels = axs[0].get_legend_handles_labels()
+    legend_elements.append(handles[0])
     legend_elements.append(
         Line2D([0], [0], linestyle=':',linewidth=2, color='black', label='Perfomance Boundary')
     )
     if show_central_tendency:
         legend_elements.append(
            Line2D([0], [0], marker='D', color='w', 
-                             markerfacecolor='red', markersize=8,
-                             markeredgecolor='black', label='Mean'))
-        legend_elements.append(
-           Line2D([0], [0], marker='o', color='w', 
-                             markerfacecolor='green', markersize=8,
-                             markeredgecolor='black', label='Mode'))
-        legend_elements.append(
-            Line2D([0], [0], linestyle='-',linewidth=2, color='orange', label='Median')
-        )
-    fig.legend(handles=legend_elements,loc='upper right', ncol=4, draggable=True)
+                             markerfacecolor='white', markersize=5,
+                             markeredgecolor='black', label=f'Mean, {bar}'))
+        x_labels = x_labels[:3]
+        for i,x_label in enumerate(x_labels):
+            legend_elements.append(
+               Line2D([0], [0], marker='s', color='w', 
+                                 markerfacecolor=colors[i], markersize=5,
+                                 markeredgecolor='black', label=x_label))
+        # legend_elements.append(
+        #    Line2D([0], [0], marker='o', color='w', 
+        #                      markerfacecolor='green', markersize=8,
+        #                      markeredgecolor='black', label=f'Mode, {hat}'))
+        # legend_elements.append(
+        #     Line2D([0], [0], linestyle='-',linewidth=2, color='orange', label=f'Median, {tilde}')
+        # )
+    # fig.legend(handles=legend_elements,loc='lower center', ncol=6, draggable=True,fontsize=fontsize,
+    #                 markerscale=1.5,)
     
     # Tight layout
-    plt.tight_layout()
+    # fig.tight_layout(rect=[0, 0, 1, 1]) 
     
-    def on_resize(event):
-        fig.tight_layout()
-        fig.canvas.draw()
-    fig.canvas.mpl_connect('resize_event', on_resize)
-    
-    # fig.savefig(f'plots/{title}.png')
+    # def on_resize(event):
+    #     fig = event.canvas.figure
+    #     # fig.set_constrained_layout()
+    #     # fig.subplots_adjust(hspace=0.25)
+    #     fig.canvas.draw_idle()
+    # fig.canvas.mpl_connect('resize_event', on_resize)
+    fig.set_constrained_layout_pads(
+        w_pad=0.05,   # padding around axes (inches)
+        h_pad=0,
+        wspace=0.05,  # space between subplot groups (fraction)
+        hspace=0.0
+    )
+    if "Error" in title:
+        fig.savefig(f'figures/err.svg')
+    elif "Coverage" in title:
+        fig.savefig(f'figures/cover.svg')
+    else:
+        fig.savefig(f'figures/tau.svg')
     return fig, ax
 #================STATS VISUALIZATION END=============================
